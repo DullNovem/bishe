@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>垃圾短信检测系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.3.0/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部导航 -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">📱 垃圾短信智能识别系统</h1>
+                <p class="subtitle">基于机器学习的智能分类</p>
+            </div>
+        </header>
+
+        <!-- 主要内容区域 -->
+        <main class="main-content">
+            <!-- 左侧：检测区域 -->
+            <div class="section detection-section">
+                <h2 class="section-title">📝 短信检测</h2>
+                
+                <div class="form-group">
+                    <label for="smsInput" class="label">输入短信内容：</label>
+                    <textarea 
+                        id="smsInput" 
+                        class="sms-input" 
+                        placeholder="请输入要检测的短信内容...（支持长文本）"
+                        rows="6"></textarea>
+                    <span class="char-count"><span id="charCount">0</span>/500</span>
+                </div>
+
+                <button id="detectBtn" class="btn btn-primary btn-lg">
+                    <span class="btn-icon">🔍</span> 一键检测
+                </button>
+
+                <!-- 检测结果显示 -->
+                <div id="resultContainer" class="result-container" style="display: none;">
+                    <div class="result-card">
+                        <h3 class="result-title">检测结果</h3>
+                        
+                        <div class="result-status">
+                            <div id="resultLabel" class="result-label">
+                                <!-- 动态填充 -->
+                            </div>
+                        </div>
+
+                        <div class="result-details">
+                            <div class="detail-item">
+                                <span class="detail-label">分类结果：</span>
+                                <span id="resultText" class="detail-value">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">置信度：</span>
+                                <span id="resultConfidence" class="detail-value">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">正常概率：</span>
+                                <span id="resultNormalProb" class="detail-value">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">垃圾概率：</span>
+                                <span id="resultSpamProb" class="detail-value">-</span>
+                            </div>
+                        </div>
+
+                        <!-- 概率分布柱状图 -->
+                        <div id="probabilityChart" class="chart-container"></div>
+                    </div>
+                </div>
+
+                <!-- 错误提示 -->
+                <div id="errorContainer" class="error-container" style="display: none;">
+                    <div class="error-card">
+                        <span class="error-icon">⚠️</span>
+                        <p id="errorMessage" class="error-message">-</p>
+                    </div>
+                </div>
+
+                <!-- 加载中提示 -->
+                <div id="loadingContainer" class="loading-container" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>检测中...</p>
+                </div>
+            </div>
+
+            <!-- 右侧：数据统计区域 -->
+            <aside class="section stats-section">
+                <h2 class="section-title">📊 系统统计</h2>
+
+                <div class="stat-cards">
+                    <!-- 总检测次数 -->
+                    <div class="stat-card total">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-info">
+                            <p class="stat-label">总检测次数</p>
+                            <p class="stat-value" id="totalDetections">0</p>
+                        </div>
+                    </div>
+
+                    <!-- 垃圾短信数 -->
+                    <div class="stat-card spam">
+                        <div class="stat-icon">🚫</div>
+                        <div class="stat-info">
+                            <p class="stat-label">垃圾短信</p>
+                            <p class="stat-value" id="spamCount">0</p>
+                        </div>
+                    </div>
+
+                    <!-- 正常短信数 -->
+                    <div class="stat-card normal">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-info">
+                            <p class="stat-label">正常短信</p>
+                            <p class="stat-value" id="normalCount">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 垃圾/正常比例饼图 -->
+                <div id="pieChart" class="chart-container"></div>
+
+                <!-- 自动刷新提示 -->
+                <div class="stats-info">
+                    <p>📌 数据每 <span id="refreshInterval">5</span> 秒自动更新一次</p>
+                </div>
+            </aside>
+        </main>
+
+        <!-- 检测历史 -->
+        <section class="section history-section">
+            <h2 class="section-title">📋 最近检测记录</h2>
+            <div class="table-wrapper">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>序号</th>
+                            <th>短信内容</th>
+                            <th>检测结果</th>
+                            <th>置信度</th>
+                            <th>时间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <tr>
+                            <td colspan="5" class="no-data">暂无检测记录</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 底部页脚 -->
+        <footer class="footer">
+            <p>&copy; 2024 垃圾短信检测系统 | 基于机器学习的智能识别</p>
+            <p>Backend: Spring Boot | ML: Python + scikit-learn | Frontend: Vanilla JS</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

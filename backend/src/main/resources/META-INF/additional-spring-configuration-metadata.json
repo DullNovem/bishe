@@ -1,0 +1,21 @@
+{
+  "groups": [
+    {
+      "name": "ml",
+      "type": "java.util.Map",
+      "sourceType": "com.bishe.config.MlServerConfig"
+    }
+  ],
+  "properties": [
+    {
+      "name": "ml.server.url",
+      "type": "java.lang.String",
+      "description": "ML server base URL"
+    },
+    {
+      "name": "ml.server.predict-endpoint",
+      "type": "java.lang.String",
+      "description": "ML server prediction endpoint"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: spam-sms-detection
+  datasource:
+    url: jdbc:mysql://localhost:3306/spam_sms_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
+    username: root
+    password: 74779804
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        '[format_sql]': true
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+# Python ML Model Server 配置
+ml:
+  server:
+    url: http://localhost:5000
+    predict-endpoint: /predict
+
+logging:
+  level:
+    root: INFO
+    '[com.bishe]': DEBUG

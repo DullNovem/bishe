@@ -8,7 +8,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 /**
- * 短信检测记录实体类
+ * 短信检测记录实体类（含语言字段）
  */
 @Entity
 @Table(name = "sms_detection_record")
@@ -50,4 +50,10 @@ public class SMSDetectionRecord {
      * 模型版本号
      */
     private String modelVersion;
+
+    /**
+     * 语言类型: "en"（英文）或 "zh"（中文）
+     */
+    @Column(length = 10)
+    private String lang;
 }

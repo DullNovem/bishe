@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 短信检测请求DTO
+ * 短信检测请求DTO（支持语言选择）
  */
 @Data
 @NoArgsConstructor
@@ -20,4 +20,9 @@ public class SMSDetectionRequest {
      * 用户标识（可选）
      */
     private String userId;
+
+    /**
+     * 语言类型: "en"（英文模型）或 "zh"（中文模型），默认 "en"
+     */
+    private String lang;
 }

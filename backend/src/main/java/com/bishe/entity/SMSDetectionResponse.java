@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 短信检测响应DTO
+ * 短信检测响应DTO（含语言标识）
  */
 @Data
 @NoArgsConstructor
@@ -22,7 +22,7 @@ public class SMSDetectionResponse {
     private Double confidence;
 
     /**
-     * 所有分类的概率分布
+     * 各分类概率
      */
     private Double normalProbability;
     private Double spamProbability;
@@ -36,4 +36,9 @@ public class SMSDetectionResponse {
      * 模型版本
      */
     private String modelVersion;
+
+    /**
+     * 使用的语言模型: "en" 或 "zh"
+     */
+    private String lang;
 }

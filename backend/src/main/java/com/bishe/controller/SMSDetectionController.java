@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * 短信检测 REST API 控制器
+ * 短信检测 REST API 控制器（支持中英文双模型）
  */
 @Slf4j
 @RestController
@@ -24,6 +24,7 @@ public class SMSDetectionController {
     /**
      * 检测短信是否为垃圾短信
      * POST /api/detection/detect
+     * 请求体新增可选字段 lang: "en"（英文）或 "zh"（中文）
      */
     @PostMapping("/detect")
     public ApiResponse<SMSDetectionResponse> detectSMS(@RequestBody SMSDetectionRequest request) {
@@ -31,8 +32,9 @@ public class SMSDetectionController {
             if (request.getContent() == null || request.getContent().trim().isEmpty()) {
                 return ApiResponse.error(400, "短信内容不能为空");
             }
-            
-            SMSDetectionResponse response = detectionService.detectSMS(request.getContent());
+
+            String lang = request.getLang() != null ? request.getLang() : "en";
+            SMSDetectionResponse response = detectionService.detectSMS(request.getContent(), lang);
             return ApiResponse.success("检测成功", response);
         } catch (Exception e) {
             log.error("检测失败: {}", e.getMessage(), e);

@@ -1,6 +1,9 @@
 // ========== 配置 ==========
 const API_BASE_URL = 'http://localhost:8080/api';
-const STATS_REFRESH_INTERVAL = 5000; // 5秒刷新一次统计数据
+const STATS_REFRESH_INTERVAL = 5000;
+
+// ========== 状态 ==========
+let currentLang = 'en'; // 当前语言: 'en' 或 'zh'
 
 // ========== DOM 元素 ==========
 const smsInput = document.getElementById('smsInput');
@@ -12,24 +15,44 @@ const loadingContainer = document.getElementById('loadingContainer');
 const historyTableBody = document.getElementById('historyTableBody');
 
 // ========== 初始化 ==========
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     initializeEventListeners();
     loadStatistics();
-    
-    // 定期刷新统计数据
     setInterval(loadStatistics, STATS_REFRESH_INTERVAL);
 });
 
+// ========== 语言切换 ==========
+function switchLang(lang) {
+    currentLang = lang;
+
+    // 更新按钮样式
+    document.getElementById('btnLangEn').classList.toggle('active', lang === 'en');
+    document.getElementById('btnLangZh').classList.toggle('active', lang === 'zh');
+
+    // 更新提示文字
+    const tip = document.getElementById('langTip');
+    if (lang === 'zh') {
+        tip.textContent = '当前使用中文模型';
+        tip.className = 'lang-tip lang-tip-zh';
+        smsInput.placeholder = '请输入要检测的中文短信内容...';
+    } else {
+        tip.textContent = '当前使用英文模型';
+        tip.className = 'lang-tip lang-tip-en';
+        smsInput.placeholder = 'Enter the SMS content to detect (English)...';
+    }
+
+    // 清除旧结果
+    resultContainer.style.display = 'none';
+    errorContainer.style.display = 'none';
+    smsInput.value = '';
+    charCount.textContent = '0';
+}
+
 // ========== 事件监听器 ==========
 function initializeEventListeners() {
-    // 检测按钮点击
     detectBtn.addEventListener('click', handleDetection);
-    
-    // 字符计数
     smsInput.addEventListener('input', updateCharCount);
-    
-    // 回车键快捷检测
-    smsInput.addEventListener('keydown', function(event) {
+    smsInput.addEventListener('keydown', function (event) {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
             handleDetection();
         }
@@ -39,39 +62,35 @@ function initializeEventListeners() {
 // ========== 短信检测功能 ==========
 async function handleDetection() {
     const content = smsInput.value.trim();
-    
-    // 验证输入
+
     if (!content) {
-        showError('请输入要检测的短信内容');
+        showError(currentLang === 'zh' ? '请输入要检测的短信内容' : 'Please enter SMS content to detect');
         return;
     }
-    
+
     if (content.length > 500) {
         showError('短信内容不能超过500个字符');
         return;
     }
-    
-    // 清除之前的结果和错误
+
     resultContainer.style.display = 'none';
     errorContainer.style.display = 'none';
     loadingContainer.style.display = 'block';
     detectBtn.disabled = true;
-    
+
     try {
         const response = await fetch(`${API_BASE_URL}/detection/detect`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ content: content })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content, lang: currentLang })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok && data.code === 200) {
             displayResult(data.data);
             addToHistory(content, data.data);
-            loadStatistics(); // 实时更新统计
+            loadStatistics();
         } else {
             showError(data.message || '检测失败，请稍后重试');
         }
@@ -86,28 +105,33 @@ async function handleDetection() {
 
 // ========== 显示检测结果 ==========
 function displayResult(result) {
-    // 隐藏错误提示
     errorContainer.style.display = 'none';
-    
-    // 显示结果容器
     resultContainer.style.display = 'block';
-    
-    // 更新结果标签
+
     const resultLabel = document.getElementById('resultLabel');
     const isSpam = result.label === 'spam';
     resultLabel.className = `result-label ${result.label}`;
     resultLabel.textContent = isSpam ? '🚫 垃圾短信' : '✅ 正常短信';
-    
-    // 更新详细信息
+
     document.getElementById('resultText').textContent = isSpam ? '垃圾短信' : '正常短信';
-    document.getElementById('resultConfidence').textContent = 
+    document.getElementById('resultConfidence').textContent =
         (result.confidence * 100).toFixed(2) + '%';
-    document.getElementById('resultNormalProb').textContent = 
+    document.getElementById('resultNormalProb').textContent =
         (result.normalProbability * 100).toFixed(2) + '%';
-    document.getElementById('resultSpamProb').textContent = 
+    document.getElementById('resultSpamProb').textContent =
         (result.spamProbability * 100).toFixed(2) + '%';
-    
-    // 绘制概率柱状图
+
+    // 语言模型标识
+    const langBadge = document.getElementById('resultLangBadge');
+    const lang = result.lang || currentLang;
+    if (lang === 'zh') {
+        langBadge.textContent = '🇨🇳 中文模型';
+        langBadge.className = 'detail-value lang-badge lang-badge-zh';
+    } else {
+        langBadge.textContent = '🇺🇸 英文模型';
+        langBadge.className = 'detail-value lang-badge lang-badge-en';
+    }
+
     drawProbabilityChart(result.normalProbability, result.spamProbability);
 }
 
@@ -115,71 +139,39 @@ function displayResult(result) {
 function drawProbabilityChart(normalProb, spamProb) {
     const chartElement = document.getElementById('probabilityChart');
     const myChart = echarts.init(chartElement);
-    
+
     const option = {
         title: {
             text: '分类概率分布',
             left: 'center',
-            textStyle: {
-                color: '#333',
-                fontSize: 14,
-                fontWeight: 'bold'
-            }
+            textStyle: { color: '#333', fontSize: 14, fontWeight: 'bold' }
         },
-        tooltip: {
-            trigger: 'axis',
-            formatter: '{b}: {c}%'
-        },
-        grid: {
-            left: '10%',
-            right: '10%',
-            bottom: '10%',
-            top: '30%',
-            containLabel: true
-        },
+        tooltip: { trigger: 'axis', formatter: '{b}: {c}%' },
+        grid: { left: '10%', right: '10%', bottom: '10%', top: '30%', containLabel: true },
         xAxis: {
             type: 'category',
             data: ['正常短信', '垃圾短信'],
-            axisLine: {
-                lineStyle: {
-                    color: '#ddd'
-                }
-            }
+            axisLine: { lineStyle: { color: '#ddd' } }
         },
         yAxis: {
-            type: 'value',
-            min: 0,
-            max: 100,
-            axisLine: {
-                lineStyle: {
-                    color: '#ddd'
-                }
-            }
+            type: 'value', min: 0, max: 100,
+            axisLine: { lineStyle: { color: '#ddd' } }
         },
-        series: [
-            {
-                data: [
-                    (normalProb * 100).toFixed(2),
-                    (spamProb * 100).toFixed(2)
-                ],
-                type: 'bar',
-                itemStyle: {
-                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                        { offset: 0, color: '#84fab0' },
-                        { offset: 1, color: '#8fd3f4' }
-                    ])
-                },
-                barMaxWidth: '60%'
-            }
-        ]
+        series: [{
+            data: [(normalProb * 100).toFixed(2), (spamProb * 100).toFixed(2)],
+            type: 'bar',
+            itemStyle: {
+                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                    { offset: 0, color: '#84fab0' },
+                    { offset: 1, color: '#8fd3f4' }
+                ])
+            },
+            barMaxWidth: '60%'
+        }]
     };
-    
+
     myChart.setOption(option);
-    
-    // 窗口resize时自动调整
-    window.addEventListener('resize', () => {
-        myChart.resize();
-    });
+    window.addEventListener('resize', () => myChart.resize());
 }
 
 // ========== 统计数据功能 ==========
@@ -187,7 +179,7 @@ async function loadStatistics() {
     try {
         const response = await fetch(`${API_BASE_URL}/detection/statistics`);
         const data = await response.json();
-        
+
         if (response.ok && data.code === 200) {
             updateStatisticsDisplay(data.data);
             drawPieChart(data.data);
@@ -207,75 +199,52 @@ function updateStatisticsDisplay(stats) {
 function drawPieChart(stats) {
     const chartElement = document.getElementById('pieChart');
     const myChart = echarts.init(chartElement);
-    
-    const total = stats.totalDetections || 1;
+
     const spamCount = stats.spamCount || 0;
     const normalCount = stats.normalCount || 0;
-    
+
     const option = {
         title: {
             text: '垃圾/正常短信比例',
             left: 'center',
-            textStyle: {
-                color: '#333',
-                fontSize: 14,
-                fontWeight: 'bold'
-            }
+            textStyle: { color: '#333', fontSize: 14, fontWeight: 'bold' }
         },
-        tooltip: {
-            trigger: 'item',
-            formatter: '{b}: {c} ({d}%)'
-        },
-        legend: {
-            orient: 'vertical',
-            left: 'left',
-            textStyle: {
-                color: '#666'
-            }
-        },
-        series: [
-            {
-                name: '短信分类',
-                type: 'pie',
-                radius: '50%',
-                data: [
-                    {
-                        value: normalCount,
-                        name: '正常短信',
-                        itemStyle: {
-                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: '#84fab0' },
-                                { offset: 1, color: '#8fd3f4' }
-                            ])
-                        }
-                    },
-                    {
-                        value: spamCount,
-                        name: '垃圾短信',
-                        itemStyle: {
-                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: '#fa709a' },
-                                { offset: 1, color: '#fee140' }
-                            ])
-                        }
-                    }
-                ],
-                emphasis: {
+        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+        legend: { orient: 'vertical', left: 'left', textStyle: { color: '#666' } },
+        series: [{
+            name: '短信分类',
+            type: 'pie',
+            radius: '50%',
+            data: [
+                {
+                    value: normalCount,
+                    name: '正常短信',
                     itemStyle: {
-                        shadowBlur: 10,
-                        shadowOffsetX: 0,
-                        shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#84fab0' },
+                            { offset: 1, color: '#8fd3f4' }
+                        ])
+                    }
+                },
+                {
+                    value: spamCount,
+                    name: '垃圾短信',
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#fa709a' },
+                            { offset: 1, color: '#fee140' }
+                        ])
                     }
                 }
+            ],
+            emphasis: {
+                itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' }
             }
-        ]
+        }]
     };
-    
+
     myChart.setOption(option);
-    
-    window.addEventListener('resize', () => {
-        myChart.resize();
-    });
+    window.addEventListener('resize', () => myChart.resize());
 }
 
 // ========== 历史记录功能 ==========
@@ -286,25 +255,23 @@ function addToHistory(content, result) {
         id: detectionHistory.length + 1,
         content: content,
         result: result.label,
-        confidence: result.confidence
+        confidence: result.confidence,
+        lang: result.lang || currentLang
     };
-    
-    detectionHistory.unshift(record); // 添加到开始
-    
-    // 只保留最近100条记录
+
+    detectionHistory.unshift(record);
     if (detectionHistory.length > 100) {
         detectionHistory = detectionHistory.slice(0, 100);
     }
-    
     updateHistoryTable();
 }
 
 function updateHistoryTable() {
     if (detectionHistory.length === 0) {
-        historyTableBody.innerHTML = '<tr><td colspan="5" class="no-data">暂无检测记录</td></tr>';
+        historyTableBody.innerHTML = '<tr><td colspan="6" class="no-data">暂无检测记录</td></tr>';
         return;
     }
-    
+
     historyTableBody.innerHTML = detectionHistory.map((record, index) => `
         <tr>
             <td>${index + 1}</td>
@@ -315,6 +282,11 @@ function updateHistoryTable() {
                 </span>
             </td>
             <td>${(record.confidence * 100).toFixed(2)}%</td>
+            <td>
+                <span class="lang-badge ${record.lang === 'zh' ? 'lang-badge-zh' : 'lang-badge-en'}">
+                    ${record.lang === 'zh' ? '🇨🇳 中文' : '🇺🇸 英文'}
+                </span>
+            </td>
             <td>${new Date().toLocaleTimeString('zh-CN')}</td>
         </tr>
     `).join('');
@@ -324,7 +296,6 @@ function updateHistoryTable() {
 function updateCharCount() {
     const count = smsInput.value.length;
     charCount.textContent = count;
-    
     if (count > 500) {
         smsInput.value = smsInput.value.substring(0, 500);
         charCount.textContent = '500';
@@ -338,14 +309,9 @@ function showError(message) {
 }
 
 function truncateText(text, maxLength) {
-    if (text.length > maxLength) {
-        return text.substring(0, maxLength) + '...';
-    }
-    return text;
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
-// ========== 页面卸载时清理 ==========
-window.addEventListener('beforeunload', function() {
-    // 可在这里添加数据保存逻辑
+window.addEventListener('beforeunload', function () {
     console.log('页面即将卸载');
 });

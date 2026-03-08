@@ -1,80 +1,219 @@
-// ========== 配置 ==========
-const API_BASE_URL = 'http://localhost:8080/api';
+﻿const API_BASE_URL = 'http://localhost:8080/api';
 const STATS_REFRESH_INTERVAL = 5000;
+const HISTORY_STORE_KEY = 'sms_detection_history_v2';
+const TEMPLATE_STORE_KEY = 'sms_templates_v1';
+const THEME_STORE_KEY = 'sms_theme_mode_v1';
 
-// ========== 状态 ==========
-let currentLang = 'en'; // 当前语言: 'en' 或 'zh'
+let currentLang = 'en';
+let detectionHistory = [];
+let templates = [];
+let statsTimer = null;
+let probabilityChart = null;
+let pieChart = null;
+let currentHistoryPage = 1;
+let historyPageSize = 10;
+let lastStats = null;
+let lastResult = null;
 
-// ========== DOM 元素 ==========
 const smsInput = document.getElementById('smsInput');
 const charCount = document.getElementById('charCount');
 const detectBtn = document.getElementById('detectBtn');
+const resetBtn = document.getElementById('resetBtn');
 const resultContainer = document.getElementById('resultContainer');
 const errorContainer = document.getElementById('errorContainer');
 const loadingContainer = document.getElementById('loadingContainer');
 const historyTableBody = document.getElementById('historyTableBody');
 
-// ========== 初始化 ==========
-document.addEventListener('DOMContentLoaded', function () {
+const searchInput = document.getElementById('searchInput');
+const resultFilter = document.getElementById('resultFilter');
+const pageSizeSelect = document.getElementById('pageSizeSelect');
+const exportBtn = document.getElementById('exportBtn');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+const historyPrevBtn = document.getElementById('historyPrevBtn');
+const historyNextBtn = document.getElementById('historyNextBtn');
+const historyPageInfo = document.getElementById('historyPageInfo');
+const historyTotalInfo = document.getElementById('historyTotalInfo');
+
+const templateTableBody = document.getElementById('templateTableBody');
+const tplName = document.getElementById('tplName');
+const tplLang = document.getElementById('tplLang');
+const tplContent = document.getElementById('tplContent');
+const addTplBtn = document.getElementById('addTplBtn');
+
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const healthPill = document.getElementById('healthPill');
+const pageTitle = document.getElementById('pageTitle');
+
+const PAGE_TITLES = {
+    dashboard: '工作台',
+    history: '检测记录',
+    templates: '样本模板'
+};
+
+const DEFAULT_TEMPLATES = [
+    {
+        id: createId(),
+        name: '中奖诱导样本',
+        lang: 'zh',
+        content: '恭喜您获得现金大奖，请点击链接领取并填写银行卡信息。'
+    },
+    {
+        id: createId(),
+        name: 'English phishing sample',
+        lang: 'en',
+        content: 'Your account is suspended. Verify now at http://fake-link.example to avoid closure.'
+    }
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+    initializeTheme();
     initializeEventListeners();
+    initializeNavigation();
+    loadSavedData();
+    renderTemplateTable();
+    renderHistoryTable();
+    updateLanguageUI();
     loadStatistics();
-    setInterval(loadStatistics, STATS_REFRESH_INTERVAL);
+    loadRecentRecords();
+
+    statsTimer = setInterval(loadStatistics, STATS_REFRESH_INTERVAL);
+    window.addEventListener('resize', resizeCharts);
 });
 
-// ========== 语言切换 ==========
-function switchLang(lang) {
-    currentLang = lang;
+function initializeTheme() {
+    const savedTheme = localStorage.getItem(THEME_STORE_KEY) || 'light';
+    applyTheme(savedTheme);
 
-    // 更新按钮样式
-    document.getElementById('btnLangEn').classList.toggle('active', lang === 'en');
-    document.getElementById('btnLangZh').classList.toggle('active', lang === 'zh');
-
-    // 更新提示文字
-    const tip = document.getElementById('langTip');
-    if (lang === 'zh') {
-        tip.textContent = '当前使用中文模型';
-        tip.className = 'lang-tip lang-tip-zh';
-        smsInput.placeholder = '请输入要检测的中文短信内容...';
-    } else {
-        tip.textContent = '当前使用英文模型';
-        tip.className = 'lang-tip lang-tip-en';
-        smsInput.placeholder = 'Enter the SMS content to detect (English)...';
-    }
-
-    // 清除旧结果
-    resultContainer.style.display = 'none';
-    errorContainer.style.display = 'none';
-    smsInput.value = '';
-    charCount.textContent = '0';
-}
-
-// ========== 事件监听器 ==========
-function initializeEventListeners() {
-    detectBtn.addEventListener('click', handleDetection);
-    smsInput.addEventListener('input', updateCharCount);
-    smsInput.addEventListener('keydown', function (event) {
-        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-            handleDetection();
+    themeToggleBtn.addEventListener('click', () => {
+        const nextTheme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+        applyTheme(nextTheme);
+        localStorage.setItem(THEME_STORE_KEY, nextTheme);
+        if (lastResult) {
+            drawProbabilityChart(lastResult.normalProbability, lastResult.spamProbability);
+        }
+        if (lastStats) {
+            drawPieChart(lastStats);
         }
     });
 }
 
-// ========== 短信检测功能 ==========
+function applyTheme(theme) {
+    document.body.dataset.theme = theme;
+    themeToggleBtn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    themeToggleBtn.title = theme === 'dark' ? '切换亮色模式' : '切换黑夜模式';
+}
+
+function isDarkTheme() {
+    return document.body.dataset.theme === 'dark';
+}
+
+function initializeEventListeners() {
+    detectBtn.addEventListener('click', handleDetection);
+    resetBtn.addEventListener('click', resetDetectionForm);
+
+    smsInput.addEventListener('input', updateCharCount);
+    smsInput.addEventListener('keydown', (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+            handleDetection();
+        }
+    });
+
+    document.getElementById('langSegment').addEventListener('click', (event) => {
+        const target = event.target;
+        if (target.classList.contains('seg-btn')) {
+            currentLang = target.dataset.lang;
+            updateLanguageUI();
+        }
+    });
+
+    searchInput.addEventListener('input', () => {
+        currentHistoryPage = 1;
+        renderHistoryTable();
+    });
+
+    resultFilter.addEventListener('change', () => {
+        currentHistoryPage = 1;
+        renderHistoryTable();
+    });
+
+    pageSizeSelect.addEventListener('change', () => {
+        historyPageSize = Number(pageSizeSelect.value) || 10;
+        currentHistoryPage = 1;
+        renderHistoryTable();
+    });
+
+    historyPrevBtn.addEventListener('click', () => {
+        if (currentHistoryPage > 1) {
+            currentHistoryPage -= 1;
+            renderHistoryTable();
+        }
+    });
+
+    historyNextBtn.addEventListener('click', () => {
+        const totalPages = getHistoryTotalPages();
+        if (currentHistoryPage < totalPages) {
+            currentHistoryPage += 1;
+            renderHistoryTable();
+        }
+    });
+
+    exportBtn.addEventListener('click', exportHistoryAsCSV);
+    clearHistoryBtn.addEventListener('click', clearLocalHistory);
+
+    addTplBtn.addEventListener('click', addTemplate);
+    templateTableBody.addEventListener('click', handleTemplateActions);
+}
+
+function initializeNavigation() {
+    const menuItems = document.querySelectorAll('.menu-item');
+    const pages = document.querySelectorAll('.page');
+
+    menuItems.forEach((item) => {
+        item.addEventListener('click', () => {
+            const page = item.dataset.page;
+            menuItems.forEach((x) => x.classList.remove('active'));
+            item.classList.add('active');
+
+            pages.forEach((p) => p.classList.remove('active'));
+            document.getElementById(`page-${page}`).classList.add('active');
+
+            pageTitle.textContent = PAGE_TITLES[page] || '管理系统';
+            if (page === 'history') {
+                renderHistoryTable();
+            }
+        });
+    });
+}
+
+function updateLanguageUI() {
+    document.querySelectorAll('.seg-btn').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.lang === currentLang);
+    });
+
+    if (currentLang === 'zh') {
+        document.getElementById('langTip').textContent = '当前模型：中文';
+        smsInput.placeholder = '请输入待检测的中文短信内容...';
+    } else {
+        document.getElementById('langTip').textContent = '当前模型：英文';
+        smsInput.placeholder = 'Enter SMS content...';
+    }
+}
+
 async function handleDetection() {
     const content = smsInput.value.trim();
+    hideError();
 
     if (!content) {
-        showError(currentLang === 'zh' ? '请输入要检测的短信内容' : 'Please enter SMS content to detect');
+        showError('请输入短信内容后再检测。');
         return;
     }
 
     if (content.length > 500) {
-        showError('短信内容不能超过500个字符');
+        showError('短信内容不能超过 500 字符。');
         return;
     }
 
     resultContainer.style.display = 'none';
-    errorContainer.style.display = 'none';
     loadingContainer.style.display = 'block';
     detectBtn.disabled = true;
 
@@ -82,110 +221,104 @@ async function handleDetection() {
         const response = await fetch(`${API_BASE_URL}/detection/detect`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: content, lang: currentLang })
+            body: JSON.stringify({ content, lang: currentLang })
         });
 
         const data = await response.json();
 
-        if (response.ok && data.code === 200) {
-            displayResult(data.data);
-            addToHistory(content, data.data);
-            loadStatistics();
-        } else {
-            showError(data.message || '检测失败，请稍后重试');
+        if (!response.ok || data.code !== 200) {
+            throw new Error(data.message || '检测失败');
         }
+
+        displayResult(data.data);
+        addToLocalHistory(content, data.data, true);
+        renderHistoryTable();
+        loadStatistics();
+        healthPill.textContent = '系统状态：在线';
     } catch (error) {
-        console.error('检测错误:', error);
-        showError('网络错误，请检查后端服务是否运行');
+        showError(`检测失败：${error.message}`);
+        healthPill.textContent = '系统状态：后端不可达';
     } finally {
         loadingContainer.style.display = 'none';
         detectBtn.disabled = false;
     }
 }
 
-// ========== 显示检测结果 ==========
 function displayResult(result) {
-    errorContainer.style.display = 'none';
-    resultContainer.style.display = 'block';
-
-    const resultLabel = document.getElementById('resultLabel');
     const isSpam = result.label === 'spam';
-    resultLabel.className = `result-label ${result.label}`;
-    resultLabel.textContent = isSpam ? '🚫 垃圾短信' : '✅ 正常短信';
+    lastResult = result;
+
+    resultContainer.style.display = 'block';
+    const resultLabel = document.getElementById('resultLabel');
+    resultLabel.className = `result-banner ${result.label}`;
+    resultLabel.textContent = isSpam ? '垃圾短信' : '正常短信';
 
     document.getElementById('resultText').textContent = isSpam ? '垃圾短信' : '正常短信';
-    document.getElementById('resultConfidence').textContent =
-        (result.confidence * 100).toFixed(2) + '%';
-    document.getElementById('resultNormalProb').textContent =
-        (result.normalProbability * 100).toFixed(2) + '%';
-    document.getElementById('resultSpamProb').textContent =
-        (result.spamProbability * 100).toFixed(2) + '%';
-
-    // 语言模型标识
-    const langBadge = document.getElementById('resultLangBadge');
-    const lang = result.lang || currentLang;
-    if (lang === 'zh') {
-        langBadge.textContent = '🇨🇳 中文模型';
-        langBadge.className = 'detail-value lang-badge lang-badge-zh';
-    } else {
-        langBadge.textContent = '🇺🇸 英文模型';
-        langBadge.className = 'detail-value lang-badge lang-badge-en';
-    }
+    document.getElementById('resultConfidence').textContent = `${(result.confidence * 100).toFixed(2)}%`;
+    document.getElementById('resultNormalProb').textContent = `${(result.normalProbability * 100).toFixed(2)}%`;
+    document.getElementById('resultSpamProb').textContent = `${(result.spamProbability * 100).toFixed(2)}%`;
+    document.getElementById('resultLangBadge').textContent = (result.lang || currentLang) === 'zh' ? '中文模型' : '英文模型';
 
     drawProbabilityChart(result.normalProbability, result.spamProbability);
 }
 
-// ========== 绘制概率柱状图 ==========
 function drawProbabilityChart(normalProb, spamProb) {
-    const chartElement = document.getElementById('probabilityChart');
-    const myChart = echarts.init(chartElement);
+    if (!window.echarts) return;
 
-    const option = {
+    const chartEl = document.getElementById('probabilityChart');
+    probabilityChart = probabilityChart || echarts.init(chartEl);
+
+    const axisColor = isDarkTheme() ? '#6d7481' : '#9aa4b2';
+    const splitColor = isDarkTheme() ? '#2f3542' : '#edf0f5';
+    const titleColor = isDarkTheme() ? '#e8ecf2' : '#1d2129';
+
+    probabilityChart.setOption({
+        backgroundColor: 'transparent',
         title: {
             text: '分类概率分布',
             left: 'center',
-            textStyle: { color: '#333', fontSize: 14, fontWeight: 'bold' }
+            textStyle: { color: titleColor, fontSize: 14 }
         },
-        tooltip: { trigger: 'axis', formatter: '{b}: {c}%' },
-        grid: { left: '10%', right: '10%', bottom: '10%', top: '30%', containLabel: true },
+        tooltip: { trigger: 'axis' },
         xAxis: {
             type: 'category',
             data: ['正常短信', '垃圾短信'],
-            axisLine: { lineStyle: { color: '#ddd' } }
+            axisLine: { lineStyle: { color: axisColor } }
         },
         yAxis: {
-            type: 'value', min: 0, max: 100,
-            axisLine: { lineStyle: { color: '#ddd' } }
+            type: 'value',
+            min: 0,
+            max: 100,
+            axisLine: { lineStyle: { color: axisColor } },
+            splitLine: { lineStyle: { color: splitColor } }
         },
         series: [{
-            data: [(normalProb * 100).toFixed(2), (spamProb * 100).toFixed(2)],
             type: 'bar',
+            barMaxWidth: 46,
+            data: [
+                Number((normalProb * 100).toFixed(2)),
+                Number((spamProb * 100).toFixed(2))
+            ],
             itemStyle: {
-                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                    { offset: 0, color: '#84fab0' },
-                    { offset: 1, color: '#8fd3f4' }
-                ])
-            },
-            barMaxWidth: '60%'
+                color: (params) => (params.dataIndex === 0 ? '#39eb6e' : '#d82e3a')
+            }
         }]
-    };
-
-    myChart.setOption(option);
-    window.addEventListener('resize', () => myChart.resize());
+    });
 }
 
-// ========== 统计数据功能 ==========
 async function loadStatistics() {
     try {
         const response = await fetch(`${API_BASE_URL}/detection/statistics`);
         const data = await response.json();
 
         if (response.ok && data.code === 200) {
+            lastStats = data.data;
             updateStatisticsDisplay(data.data);
             drawPieChart(data.data);
+            healthPill.textContent = '系统状态：在线';
         }
     } catch (error) {
-        console.error('加载统计数据失败:', error);
+        healthPill.textContent = '系统状态：后端不可达';
     }
 }
 
@@ -195,123 +328,326 @@ function updateStatisticsDisplay(stats) {
     document.getElementById('normalCount').textContent = stats.normalCount || 0;
 }
 
-// ========== 绘制饼图 ==========
 function drawPieChart(stats) {
-    const chartElement = document.getElementById('pieChart');
-    const myChart = echarts.init(chartElement);
+    if (!window.echarts) return;
 
-    const spamCount = stats.spamCount || 0;
-    const normalCount = stats.normalCount || 0;
+    const chartEl = document.getElementById('pieChart');
+    pieChart = pieChart || echarts.init(chartEl);
 
-    const option = {
+    const titleColor = isDarkTheme() ? '#e8ecf2' : '#1d2129';
+    const legendColor = isDarkTheme() ? '#b8c0cc' : '#5f6b7a';
+
+    pieChart.setOption({
+        backgroundColor: 'transparent',
         title: {
-            text: '垃圾/正常短信比例',
-            left: 'center',
-            textStyle: { color: '#333', fontSize: 14, fontWeight: 'bold' }
+            text: '垃圾/正常占比',
+            left: 12,
+            top: 8,
+            textStyle: { color: titleColor, fontSize: 14, fontWeight: 600 }
         },
-        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-        legend: { orient: 'vertical', left: 'left', textStyle: { color: '#666' } },
+        tooltip: { trigger: 'item' },
+        legend: {
+            top: 8,
+            right: 10,
+            orient: 'horizontal',
+            itemWidth: 14,
+            itemHeight: 8,
+            textStyle: { color: legendColor }
+        },
         series: [{
-            name: '短信分类',
             type: 'pie',
-            radius: '50%',
+            radius: ['0%', '62%'],
+            center: ['50%', '62%'],
+            label: { color: legendColor },
+            labelLine: { lineStyle: { color: legendColor } },
             data: [
-                {
-                    value: normalCount,
-                    name: '正常短信',
-                    itemStyle: {
-                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                            { offset: 0, color: '#84fab0' },
-                            { offset: 1, color: '#8fd3f4' }
-                        ])
-                    }
-                },
-                {
-                    value: spamCount,
-                    name: '垃圾短信',
-                    itemStyle: {
-                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                            { offset: 0, color: '#fa709a' },
-                            { offset: 1, color: '#fee140' }
-                        ])
-                    }
-                }
-            ],
-            emphasis: {
-                itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' }
-            }
+                { value: stats.normalCount || 0, name: '正常短信', itemStyle: { color: '#39eb6e' } },
+                { value: stats.spamCount || 0, name: '垃圾短信', itemStyle: { color: '#d82e3a' } }
+            ]
         }]
-    };
-
-    myChart.setOption(option);
-    window.addEventListener('resize', () => myChart.resize());
+    });
 }
 
-// ========== 历史记录功能 ==========
-let detectionHistory = [];
+async function loadRecentRecords() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/detection/recent-records?limit=100`);
+        const data = await response.json();
 
-function addToHistory(content, result) {
+        if (response.ok && data.code === 200 && Array.isArray(data.data) && data.data.length > 0) {
+            const mapped = data.data.map((item) => ({
+                id: createId(),
+                content: item.smsContent || '',
+                result: item.label || (item.classification === 1 ? 'spam' : 'normal'),
+                confidence: Number(item.confidence || 0),
+                lang: inferLangFromContent(item.smsContent || ''),
+                source: 'backend',
+                time: item.detectionTime || new Date().toISOString()
+            }));
+
+            const merged = [...mapped, ...detectionHistory.filter((x) => x.source !== 'backend')];
+            detectionHistory = merged.slice(0, 300);
+            saveHistory();
+            renderHistoryTable();
+        }
+    } catch (error) {
+    }
+}
+
+function addToLocalHistory(content, result, fromDetect = false) {
     const record = {
-        id: detectionHistory.length + 1,
-        content: content,
+        id: createId(),
+        content,
         result: result.label,
-        confidence: result.confidence,
-        lang: result.lang || currentLang
+        confidence: Number(result.confidence || 0),
+        lang: result.lang || currentLang,
+        source: fromDetect ? 'local' : 'backend',
+        time: new Date().toISOString()
     };
 
     detectionHistory.unshift(record);
-    if (detectionHistory.length > 100) {
-        detectionHistory = detectionHistory.slice(0, 100);
-    }
-    updateHistoryTable();
+    detectionHistory = detectionHistory.slice(0, 300);
+    saveHistory();
 }
 
-function updateHistoryTable() {
-    if (detectionHistory.length === 0) {
-        historyTableBody.innerHTML = '<tr><td colspan="6" class="no-data">暂无检测记录</td></tr>';
+function getFilteredHistory() {
+    const keyword = (searchInput.value || '').trim().toLowerCase();
+    const filter = resultFilter.value;
+
+    return detectionHistory.filter((record) => {
+        const byKeyword = !keyword || record.content.toLowerCase().includes(keyword);
+        const byResult = filter === 'all' || record.result === filter;
+        return byKeyword && byResult;
+    });
+}
+
+function getHistoryTotalPages() {
+    const total = getFilteredHistory().length;
+    return Math.max(1, Math.ceil(total / historyPageSize));
+}
+
+function renderHistoryTable() {
+    const filtered = getFilteredHistory();
+    const totalRecords = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalRecords / historyPageSize));
+
+    if (currentHistoryPage > totalPages) {
+        currentHistoryPage = totalPages;
+    }
+
+    const start = (currentHistoryPage - 1) * historyPageSize;
+    const end = start + historyPageSize;
+    const pageRows = filtered.slice(start, end);
+
+    historyTotalInfo.textContent = `共 ${totalRecords} 条`;
+    historyPageInfo.textContent = `第 ${currentHistoryPage} / ${totalPages} 页`;
+    historyPrevBtn.disabled = currentHistoryPage <= 1;
+    historyNextBtn.disabled = currentHistoryPage >= totalPages;
+
+    if (pageRows.length === 0) {
+        historyTableBody.innerHTML = '<tr><td colspan="6" class="muted center">暂无记录</td></tr>';
         return;
     }
 
-    historyTableBody.innerHTML = detectionHistory.map((record, index) => `
+    historyTableBody.innerHTML = pageRows.map((record, index) => `
         <tr>
-            <td>${index + 1}</td>
-            <td>${truncateText(record.content, 50)}</td>
-            <td>
-                <span class="result-badge ${record.result}">
-                    ${record.result === 'spam' ? '🚫 垃圾' : '✅ 正常'}
-                </span>
-            </td>
+            <td>${start + index + 1}</td>
+            <td>${escapeHtml(truncateText(record.content, 60))}</td>
+            <td><span class="badge ${record.result}">${record.result === 'spam' ? '垃圾' : '正常'}</span></td>
             <td>${(record.confidence * 100).toFixed(2)}%</td>
-            <td>
-                <span class="lang-badge ${record.lang === 'zh' ? 'lang-badge-zh' : 'lang-badge-en'}">
-                    ${record.lang === 'zh' ? '🇨🇳 中文' : '🇺🇸 英文'}
-                </span>
-            </td>
-            <td>${new Date().toLocaleTimeString('zh-CN')}</td>
+            <td>${record.lang === 'zh' ? '中文' : '英文'}</td>
+            <td>${formatTime(record.time)}</td>
         </tr>
     `).join('');
 }
 
-// ========== 辅助函数 ==========
-function updateCharCount() {
-    const count = smsInput.value.length;
-    charCount.textContent = count;
-    if (count > 500) {
-        smsInput.value = smsInput.value.substring(0, 500);
-        charCount.textContent = '500';
+function addTemplate() {
+    const name = tplName.value.trim();
+    const lang = tplLang.value;
+    const content = tplContent.value.trim();
+
+    if (!name || !content) {
+        showError('模板名称和模板内容不能为空。');
+        return;
     }
+
+    templates.unshift({ id: createId(), name, lang, content });
+    templates = templates.slice(0, 50);
+    saveTemplates();
+    renderTemplateTable();
+
+    tplName.value = '';
+    tplContent.value = '';
+    hideError();
+}
+
+function handleTemplateActions(event) {
+    const target = event.target;
+    const action = target.dataset.action;
+    const id = target.dataset.id;
+    if (!action || !id) return;
+
+    const template = templates.find((item) => item.id === id);
+    if (!template) return;
+
+    if (action === 'use') {
+        currentLang = template.lang;
+        updateLanguageUI();
+        smsInput.value = template.content;
+        updateCharCount();
+        document.querySelector('[data-page="dashboard"]').click();
+    }
+
+    if (action === 'delete') {
+        templates = templates.filter((item) => item.id !== id);
+        saveTemplates();
+        renderTemplateTable();
+    }
+}
+
+function renderTemplateTable() {
+    if (templates.length === 0) {
+        templateTableBody.innerHTML = '<tr><td colspan="4" class="muted center">暂无模板</td></tr>';
+        return;
+    }
+
+    templateTableBody.innerHTML = templates.map((item) => `
+        <tr>
+            <td>${escapeHtml(item.name)}</td>
+            <td>${item.lang === 'zh' ? '中文' : '英文'}</td>
+            <td>${escapeHtml(truncateText(item.content, 72))}</td>
+            <td>
+                <button class="btn" data-action="use" data-id="${item.id}">填充</button>
+                <button class="btn" data-action="delete" data-id="${item.id}">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function exportHistoryAsCSV() {
+    const rows = getFilteredHistory().map((record) => ([
+        record.content,
+        record.result,
+        `${(record.confidence * 100).toFixed(2)}%`,
+        record.lang,
+        formatTime(record.time)
+    ]));
+
+    if (rows.length === 0) {
+        showError('没有可导出的记录。');
+        return;
+    }
+
+    const csv = ['内容,结果,置信度,模型,时间', ...rows.map((r) => r.map(csvEscape).join(','))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `detection-history-${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+function clearLocalHistory() {
+    detectionHistory = detectionHistory.filter((item) => item.source === 'backend');
+    currentHistoryPage = 1;
+    saveHistory();
+    renderHistoryTable();
+}
+
+function resetDetectionForm() {
+    smsInput.value = '';
+    charCount.textContent = '0';
+    resultContainer.style.display = 'none';
+    hideError();
+}
+
+function updateCharCount() {
+    if (smsInput.value.length > 500) {
+        smsInput.value = smsInput.value.slice(0, 500);
+    }
+    charCount.textContent = String(smsInput.value.length);
 }
 
 function showError(message) {
     errorContainer.style.display = 'block';
-    resultContainer.style.display = 'none';
-    document.getElementById('errorMessage').textContent = message;
+    errorContainer.textContent = message;
+}
+
+function hideError() {
+    errorContainer.style.display = 'none';
+    errorContainer.textContent = '';
+}
+
+function resizeCharts() {
+    if (probabilityChart) probabilityChart.resize();
+    if (pieChart) pieChart.resize();
+}
+
+function loadSavedData() {
+    try {
+        const localHistory = JSON.parse(localStorage.getItem(HISTORY_STORE_KEY) || '[]');
+        detectionHistory = Array.isArray(localHistory) ? localHistory : [];
+    } catch {
+        detectionHistory = [];
+    }
+
+    try {
+        const localTemplates = JSON.parse(localStorage.getItem(TEMPLATE_STORE_KEY) || '[]');
+        templates = Array.isArray(localTemplates) && localTemplates.length > 0 ? localTemplates : DEFAULT_TEMPLATES;
+    } catch {
+        templates = DEFAULT_TEMPLATES;
+    }
+
+    saveTemplates();
+}
+
+function saveHistory() {
+    localStorage.setItem(HISTORY_STORE_KEY, JSON.stringify(detectionHistory));
+}
+
+function saveTemplates() {
+    localStorage.setItem(TEMPLATE_STORE_KEY, JSON.stringify(templates));
 }
 
 function truncateText(text, maxLength) {
-    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
 }
 
-window.addEventListener('beforeunload', function () {
-    console.log('页面即将卸载');
+function inferLangFromContent(content) {
+    return /[\u4e00-\u9fa5]/.test(content) ? 'zh' : 'en';
+}
+
+function formatTime(time) {
+    const date = new Date(time || Date.now());
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('zh-CN');
+}
+
+function createId() {
+    return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function escapeHtml(text) {
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function csvEscape(value) {
+    const str = String(value ?? '');
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+}
+
+window.addEventListener('beforeunload', () => {
+    if (statsTimer) clearInterval(statsTimer);
 });
+
+

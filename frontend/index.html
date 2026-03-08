@@ -1,176 +1,197 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>垃圾短信检测系统</title>
+    <title>短信识别管理系统</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.3.0/dist/echarts.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <!-- 顶部导航 -->
-        <header class="header">
-            <div class="header-content">
-                <h1 class="logo">📱 垃圾短信智能识别系统</h1>
-                <p class="subtitle">基于机器学习的智能分类 · 支持中英文双模型</p>
+<div class="app-shell">
+    <aside class="sider">
+        <div class="brand">
+            <div class="brand-dot"></div>
+            <div>
+                <h1>Spam Admin</h1>
+                <p>SMS Detection Console</p>
+            </div>
+        </div>
+
+        <nav class="menu">
+            <div class="menu-group-title">总览</div>
+            <button class="menu-item active" data-page="dashboard">工作台</button>
+            <div class="menu-group-title">业务模块</div>
+            <button class="menu-item" data-page="history">检测记录</button>
+            <button class="menu-item" data-page="templates">样本模板</button>
+        </nav>
+
+        <div class="sider-card">
+            <p class="sider-card-title">快捷操作</p>
+            <p class="sider-card-item">Ctrl / Cmd + Enter 快速检测</p>
+            <p class="sider-card-item">记录页支持筛选与分页</p>
+            <p class="sider-card-item">右上角可切换黑夜模式</p>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <div class="topbar-left">
+                <div class="search-wrap">
+                    <input class="top-search" placeholder="Please search" />
+                </div>
+            </div>
+            <div class="topbar-right">
+                <button id="themeToggleBtn" class="icon-btn" title="切换黑夜模式">🌙</button>
+                <span class="status-pill" id="healthPill">系统状态：检测中</span>
             </div>
         </header>
 
-        <!-- 主要内容区域 -->
-        <main class="main-content">
-            <!-- 左侧：检测区域 -->
-            <div class="section detection-section">
-                <h2 class="section-title">📝 短信检测</h2>
+        <div class="breadcrumb">Dashboard / <span id="pageTitle">工作台</span></div>
 
-                <!-- ===== 语言切换 ===== -->
-                <div class="lang-switcher">
-                    <span class="lang-label">识别语言：</span>
-                    <div class="lang-toggle-group">
-                        <button id="btnLangEn" class="lang-btn active" data-lang="en" onclick="switchLang('en')">
-                            🇺🇸 English
-                        </button>
-                        <button id="btnLangZh" class="lang-btn" data-lang="zh" onclick="switchLang('zh')">
-                            🇨🇳 中文
-                        </button>
-                    </div>
-                    <span id="langTip" class="lang-tip">当前使用英文模型</span>
-                </div>
-
-                <div class="form-group">
-                    <label for="smsInput" class="label">输入短信内容：</label>
-                    <textarea
-                        id="smsInput"
-                        class="sms-input"
-                        placeholder="请输入要检测的短信内容...（支持长文本）"
-                        rows="6"></textarea>
-                    <span class="char-count"><span id="charCount">0</span>/500</span>
-                </div>
-
-                <button id="detectBtn" class="btn btn-primary btn-lg">
-                    <span class="btn-icon">🔍</span> 一键检测
-                </button>
-
-                <!-- 检测结果显示 -->
-                <div id="resultContainer" class="result-container" style="display: none;">
-                    <div class="result-card">
-                        <h3 class="result-title">检测结果</h3>
-
-                        <div class="result-status">
-                            <div id="resultLabel" class="result-label"></div>
-                        </div>
-
-                        <div class="result-details">
-                            <div class="detail-item">
-                                <span class="detail-label">分类结果：</span>
-                                <span id="resultText" class="detail-value">-</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">置信度：</span>
-                                <span id="resultConfidence" class="detail-value">-</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">正常概率：</span>
-                                <span id="resultNormalProb" class="detail-value">-</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">垃圾概率：</span>
-                                <span id="resultSpamProb" class="detail-value">-</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">使用模型：</span>
-                                <span id="resultLangBadge" class="detail-value lang-badge-en">-</span>
+        <section class="page active" id="page-dashboard">
+            <div class="workspace-layout">
+                <div class="workspace-main">
+                    <section class="panel">
+                        <div class="panel-head">
+                            <h3>短信检测</h3>
+                            <div class="segmented" id="langSegment">
+                                <button class="seg-btn active" data-lang="en">English</button>
+                                <button class="seg-btn" data-lang="zh">中文</button>
                             </div>
                         </div>
 
-                        <!-- 概率分布柱状图 -->
-                        <div id="probabilityChart" class="chart-container"></div>
-                    </div>
+                        <label class="field-label" for="smsInput">短信内容</label>
+                        <textarea id="smsInput" class="input-textarea" rows="7" placeholder="Enter SMS content..."></textarea>
+                        <div class="field-foot">
+                            <span class="muted" id="langTip">当前模型：英文</span>
+                            <span><strong id="charCount">0</strong>/500</span>
+                        </div>
+
+                        <div class="actions">
+                            <button class="btn btn-primary" id="detectBtn">开始检测</button>
+                            <button class="btn" id="resetBtn">清空</button>
+                        </div>
+
+                        <div id="loadingContainer" class="loading" style="display:none;">正在检测，请稍候...</div>
+                        <div id="errorContainer" class="alert error" style="display:none;"></div>
+
+                        <div id="resultContainer" style="display:none;">
+                            <div class="result-banner" id="resultLabel"></div>
+                            <div class="kv-grid">
+                                <div class="kv-item"><span>分类结果</span><strong id="resultText">-</strong></div>
+                                <div class="kv-item"><span>置信度</span><strong id="resultConfidence">-</strong></div>
+                                <div class="kv-item"><span>正常概率</span><strong id="resultNormalProb">-</strong></div>
+                                <div class="kv-item"><span>垃圾概率</span><strong id="resultSpamProb">-</strong></div>
+                                <div class="kv-item"><span>使用模型</span><strong id="resultLangBadge">-</strong></div>
+                            </div>
+                            <div id="probabilityChart" class="chart"></div>
+                        </div>
+                    </section>
                 </div>
 
-                <!-- 错误提示 -->
-                <div id="errorContainer" class="error-container" style="display: none;">
-                    <div class="error-card">
-                        <span class="error-icon">⚠️</span>
-                        <p id="errorMessage" class="error-message">-</p>
-                    </div>
-                </div>
-
-                <!-- 加载中提示 -->
-                <div id="loadingContainer" class="loading-container" style="display: none;">
-                    <div class="spinner"></div>
-                    <p>检测中...</p>
-                </div>
+                <aside class="workspace-aside">
+                    <section class="panel">
+                        <div class="panel-head">
+                            <h3>统计概览</h3>
+                        </div>
+                        <div class="stat-grid">
+                            <div class="stat-card"><span>总检测数</span><strong id="totalDetections">0</strong></div>
+                            <div class="stat-card"><span>垃圾短信</span><strong id="spamCount">0</strong></div>
+                            <div class="stat-card"><span>正常短信</span><strong id="normalCount">0</strong></div>
+                        </div>
+                        <div id="pieChart" class="chart chart-small"></div>
+                    </section>
+                </aside>
             </div>
+        </section>
 
-            <!-- 右侧：数据统计区域 -->
-            <aside class="section stats-section">
-                <h2 class="section-title">📊 系统统计</h2>
-
-                <div class="stat-cards">
-                    <div class="stat-card total">
-                        <div class="stat-icon">📈</div>
-                        <div class="stat-info">
-                            <p class="stat-label">总检测次数</p>
-                            <p class="stat-value" id="totalDetections">0</p>
-                        </div>
-                    </div>
-                    <div class="stat-card spam">
-                        <div class="stat-icon">🚫</div>
-                        <div class="stat-info">
-                            <p class="stat-label">垃圾短信</p>
-                            <p class="stat-value" id="spamCount">0</p>
-                        </div>
-                    </div>
-                    <div class="stat-card normal">
-                        <div class="stat-icon">✅</div>
-                        <div class="stat-info">
-                            <p class="stat-label">正常短信</p>
-                            <p class="stat-value" id="normalCount">0</p>
-                        </div>
+        <section class="page" id="page-history">
+            <section class="panel history-panel">
+                <div class="panel-head">
+                    <h3>检测记录</h3>
+                    <div class="table-tools">
+                        <input id="searchInput" class="input" type="text" placeholder="搜索内容...">
+                        <select id="resultFilter" class="input select">
+                            <option value="all">全部结果</option>
+                            <option value="spam">仅垃圾</option>
+                            <option value="normal">仅正常</option>
+                        </select>
+                        <select id="pageSizeSelect" class="input select page-size-select">
+                            <option value="10">每页 10 条</option>
+                            <option value="20">每页 20 条</option>
+                            <option value="50">每页 50 条</option>
+                        </select>
+                        <button class="btn" id="exportBtn">导出 CSV</button>
+                        <button class="btn" id="clearHistoryBtn">清空本地记录</button>
                     </div>
                 </div>
 
-                <!-- 垃圾/正常比例饼图 -->
-                <div id="pieChart" class="chart-container"></div>
-
-                <div class="stats-info">
-                    <p>📌 数据每 <span id="refreshInterval">5</span> 秒自动更新一次</p>
-                </div>
-            </aside>
-        </main>
-
-        <!-- 检测历史 -->
-        <section class="section history-section">
-            <h2 class="section-title">📋 最近检测记录</h2>
-            <div class="table-wrapper">
-                <table class="history-table">
-                    <thead>
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
                         <tr>
-                            <th>序号</th>
-                            <th>短信内容</th>
-                            <th>检测结果</th>
+                            <th>#</th>
+                            <th>内容</th>
+                            <th>结果</th>
                             <th>置信度</th>
                             <th>模型</th>
                             <th>时间</th>
                         </tr>
-                    </thead>
-                    <tbody id="historyTableBody">
-                        <tr>
-                            <td colspan="6" class="no-data">暂无检测记录</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody id="historyTableBody">
+                        <tr><td colspan="6" class="muted center">暂无记录</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pagination">
+                    <span id="historyTotalInfo" class="muted">共 0 条</span>
+                    <div class="pagination-controls">
+                        <button class="btn" id="historyPrevBtn">上一页</button>
+                        <span id="historyPageInfo" class="muted">第 1 / 1 页</span>
+                        <button class="btn" id="historyNextBtn">下一页</button>
+                    </div>
+                </div>
+            </section>
         </section>
 
-        <!-- 底部页脚 -->
-        <footer class="footer">
-            <p>&copy; 2024 垃圾短信检测系统 | 基于机器学习的智能识别</p>
-            <p>Backend: Spring Boot | ML: Python + scikit-learn | Frontend: Vanilla JS</p>
-        </footer>
-    </div>
+        <section class="page" id="page-templates">
+            <section class="panel">
+                <div class="panel-head">
+                    <h3>样本模板管理</h3>
+                    <span class="muted">新增、删除、一键填充到检测框</span>
+                </div>
 
-    <script src="script.js"></script>
+                <div class="template-form">
+                    <input class="input" id="tplName" type="text" placeholder="模板名称">
+                    <select class="input select" id="tplLang">
+                        <option value="en">英文</option>
+                        <option value="zh">中文</option>
+                    </select>
+                    <textarea class="input-textarea" id="tplContent" rows="4" placeholder="模板内容"></textarea>
+                    <button class="btn btn-primary" id="addTplBtn">新增模板</button>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                        <tr>
+                            <th>名称</th>
+                            <th>语言</th>
+                            <th>内容</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody id="templateTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+    </main>
+</div>
+
+<script src="script.js"></script>
 </body>
 </html>
+

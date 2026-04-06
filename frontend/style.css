@@ -52,6 +52,106 @@ body {
     color: var(--text);
 }
 
+.hidden {
+    display: none !important;
+}
+
+.auth-shell {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background:
+        radial-gradient(circle at top left, rgba(22, 93, 255, 0.12), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(0, 194, 255, 0.16), transparent 24%),
+        var(--bg);
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+    padding: 28px;
+}
+
+.auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.auth-brand h1 {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.auth-brand p {
+    margin-top: 4px;
+    color: var(--text-soft);
+    font-size: 13px;
+}
+
+.auth-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.auth-tab {
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text-soft);
+    border-radius: 10px;
+    padding: 10px 0;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.auth-tab.active {
+    color: var(--accent);
+    border-color: rgba(22, 93, 255, 0.18);
+    background: rgba(22, 93, 255, 0.08);
+}
+
+.auth-form {
+    display: none;
+}
+
+.auth-form.active {
+    display: grid;
+    gap: 10px;
+}
+
+.field-message {
+    min-height: 18px;
+    margin-top: -4px;
+    font-size: 12px;
+    color: var(--text-soft);
+}
+
+.field-message.error {
+    color: var(--danger);
+}
+
+.field-message.success {
+    color: var(--success);
+}
+
+.input.invalid {
+    border-color: rgba(255, 77, 79, 0.55);
+    background: var(--danger-bg);
+}
+
+.auth-submit {
+    margin-top: 8px;
+}
+
 .app-shell {
     min-height: 100vh;
     display: grid;
@@ -184,6 +284,16 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.user-chip {
+    border: 1px solid rgba(22, 93, 255, 0.18);
+    background: rgba(22, 93, 255, 0.08);
+    color: var(--accent);
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
 }
 
 .icon-btn {

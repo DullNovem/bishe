@@ -3,6 +3,7 @@ const STATS_REFRESH_INTERVAL = 5000;
 const HISTORY_STORE_KEY = 'sms_detection_history_v3';
 const TEMPLATE_STORE_KEY = 'sms_templates_v1';
 const THEME_STORE_KEY = 'sms_theme_mode_v1';
+const CURRENT_USER_STORE_KEY = 'sms_current_user_v1';
 
 let currentLang = 'en';
 let currentBatchLang = 'en';
@@ -28,6 +29,25 @@ let pendingFeedbackPayload = null;
 let toastTimer = null;
 let submittedFeedbackKeys = new Set();
 let keywordStats = [];
+let currentUser = null;
+
+const authShell = document.getElementById('authShell');
+const appShell = document.getElementById('appShell');
+const authError = document.getElementById('authError');
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+const logoutBtn = document.getElementById('logoutBtn');
+const currentUserChip = document.getElementById('currentUserChip');
+const registerUsername = document.getElementById('registerUsername');
+const registerDisplayName = document.getElementById('registerDisplayName');
+const registerPhone = document.getElementById('registerPhone');
+const registerEmail = document.getElementById('registerEmail');
+const registerPassword = document.getElementById('registerPassword');
+const registerUsernameMessage = document.getElementById('registerUsernameMessage');
+const registerDisplayNameMessage = document.getElementById('registerDisplayNameMessage');
+const registerPhoneMessage = document.getElementById('registerPhoneMessage');
+const registerEmailMessage = document.getElementById('registerEmailMessage');
+const registerPasswordMessage = document.getElementById('registerPasswordMessage');
 
 const smsInput = document.getElementById('smsInput');
 const charCount = document.getElementById('charCount');
@@ -132,6 +152,7 @@ const DEFAULT_TEMPLATES = [
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeTheme();
+    initializeAuth();
     initializeNavigation();
     initializeEventListeners();
     loadSavedData();
@@ -147,10 +168,243 @@ document.addEventListener('DOMContentLoaded', () => {
     loadKeywordRules();
     loadFeedbackSamples();
     loadKeywordStats();
+    restoreCurrentUser();
 
     statsTimer = setInterval(loadStatistics, STATS_REFRESH_INTERVAL);
     window.addEventListener('resize', resizeCharts);
 });
+
+function initializeAuth() {
+    switchAuthTab('login');
+    hideAuthError();
+    bindRegisterValidation();
+}
+
+function switchAuthTab(tab) {
+    document.querySelectorAll('.auth-tab').forEach((button) => {
+        button.classList.toggle('active', button.dataset.authTab === tab);
+    });
+    loginForm.classList.toggle('active', tab === 'login');
+    registerForm.classList.toggle('active', tab === 'register');
+    hideAuthError();
+}
+
+function restoreCurrentUser() {
+    try {
+        currentUser = JSON.parse(localStorage.getItem(CURRENT_USER_STORE_KEY) || 'null');
+    } catch {
+        currentUser = null;
+    }
+    updateAuthUI();
+}
+
+function updateAuthUI() {
+    const loggedIn = !!(currentUser && currentUser.id);
+    authShell.classList.toggle('hidden', loggedIn);
+    appShell.classList.toggle('hidden', !loggedIn);
+    currentUserChip.textContent = loggedIn
+        ? `${currentUser.displayName || currentUser.username} / ${currentUser.username}`
+        : '未登录';
+}
+
+function persistCurrentUser(user) {
+    currentUser = user;
+    localStorage.setItem(CURRENT_USER_STORE_KEY, JSON.stringify(user));
+    updateAuthUI();
+}
+
+function clearCurrentUser() {
+    currentUser = null;
+    localStorage.removeItem(CURRENT_USER_STORE_KEY);
+    updateAuthUI();
+}
+
+async function handleLogin(event) {
+    event.preventDefault();
+    hideAuthError();
+
+    const payload = {
+        username: document.getElementById('loginUsername').value.trim(),
+        password: document.getElementById('loginPassword').value
+    };
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok || data.code !== 200) {
+            throw new Error(data.message || '登录失败');
+        }
+        persistCurrentUser(data.data);
+        loginForm.reset();
+        showToast('登录成功');
+    } catch (error) {
+        showAuthError(error.message || '登录失败');
+    }
+}
+
+async function handleRegister(event) {
+    event.preventDefault();
+    hideAuthError();
+    const validation = validateRegisterForm(true);
+    if (!validation.valid) {
+        showAuthError('请先按提示完善注册信息');
+        return;
+    }
+
+    const payload = {
+        username: registerUsername.value.trim(),
+        displayName: registerDisplayName.value.trim(),
+        phone: registerPhone.value.trim(),
+        email: registerEmail.value.trim(),
+        password: registerPassword.value
+    };
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok || data.code !== 200) {
+            throw new Error(data.message || '注册失败');
+        }
+        persistCurrentUser(data.data);
+        registerForm.reset();
+        showToast('注册成功，已自动登录');
+    } catch (error) {
+        showAuthError(error.message || '注册失败');
+    }
+}
+
+function handleLogout() {
+    clearCurrentUser();
+    switchAuthTab('login');
+    showToast('已退出登录');
+}
+
+function showAuthError(message) {
+    authError.style.display = 'block';
+    authError.textContent = message;
+}
+
+function hideAuthError() {
+    authError.style.display = 'none';
+    authError.textContent = '';
+}
+
+function bindRegisterValidation() {
+    [
+        [registerUsername, registerUsernameMessage, validateUsername],
+        [registerDisplayName, registerDisplayNameMessage, validateDisplayName],
+        [registerPhone, registerPhoneMessage, validatePhone],
+        [registerEmail, registerEmailMessage, validateEmail],
+        [registerPassword, registerPasswordMessage, validatePassword]
+    ].forEach(([input, messageEl, validator]) => {
+        input.addEventListener('input', () => {
+            applyFieldValidation(input, messageEl, validator(input.value), false);
+        });
+        input.addEventListener('blur', () => {
+            applyFieldValidation(input, messageEl, validator(input.value), true);
+        });
+    });
+}
+
+function validateRegisterForm(forceShow) {
+    const usernameState = applyFieldValidation(registerUsername, registerUsernameMessage, validateUsername(registerUsername.value), forceShow);
+    const displayNameState = applyFieldValidation(registerDisplayName, registerDisplayNameMessage, validateDisplayName(registerDisplayName.value), forceShow);
+    const phoneState = applyFieldValidation(registerPhone, registerPhoneMessage, validatePhone(registerPhone.value), forceShow);
+    const emailState = applyFieldValidation(registerEmail, registerEmailMessage, validateEmail(registerEmail.value), forceShow);
+    const passwordState = applyFieldValidation(registerPassword, registerPasswordMessage, validatePassword(registerPassword.value), forceShow);
+    return {
+        valid: usernameState && displayNameState && phoneState && emailState && passwordState
+    };
+}
+
+function applyFieldValidation(input, messageEl, state, forceShow) {
+    const hasValue = String(input.value || '').trim().length > 0;
+    const shouldShow = forceShow || hasValue;
+    input.classList.toggle('invalid', shouldShow && !state.valid);
+    messageEl.classList.remove('error', 'success');
+
+    if (!shouldShow) {
+        messageEl.textContent = '';
+        return state.valid;
+    }
+
+    messageEl.textContent = state.message;
+    if (state.valid) {
+        messageEl.classList.add('success');
+    } else {
+        messageEl.classList.add('error');
+    }
+    return state.valid;
+}
+
+function validateUsername(value) {
+    const text = String(value || '').trim();
+    if (!text) {
+        return { valid: false, message: '请输入用户名' };
+    }
+    if (text.length < 4 || text.length > 32) {
+        return { valid: false, message: '用户名长度需在 4 到 32 位之间' };
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(text)) {
+        return { valid: false, message: '用户名仅支持字母、数字和下划线' };
+    }
+    return { valid: true, message: '用户名格式可用' };
+}
+
+function validateDisplayName(value) {
+    const text = String(value || '').trim();
+    if (!text) {
+        return { valid: false, message: '请输入显示名称' };
+    }
+    if (text.length < 2 || text.length > 32) {
+        return { valid: false, message: '显示名称长度需在 2 到 32 位之间' };
+    }
+    return { valid: true, message: '显示名称可用' };
+}
+
+function validatePhone(value) {
+    const text = String(value || '').trim();
+    if (!text) {
+        return { valid: false, message: '请输入手机号' };
+    }
+    if (!/^1\d{10}$/.test(text)) {
+        return { valid: false, message: '请输入有效的 11 位手机号' };
+    }
+    return { valid: true, message: '手机号格式正确' };
+}
+
+function validateEmail(value) {
+    const text = String(value || '').trim();
+    if (!text) {
+        return { valid: false, message: '请输入邮箱' };
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+        return { valid: false, message: '请输入有效的邮箱地址' };
+    }
+    return { valid: true, message: '邮箱格式正确' };
+}
+
+function validatePassword(value) {
+    const text = String(value || '');
+    if (!text) {
+        return { valid: false, message: '请输入密码' };
+    }
+    if (text.length < 6 || text.length > 32) {
+        return { valid: false, message: '密码长度需在 6 到 32 位之间' };
+    }
+    if (!/[A-Za-z]/.test(text) || !/\d/.test(text)) {
+        return { valid: false, message: '密码需同时包含字母和数字' };
+    }
+    return { valid: true, message: '密码强度可用' };
+}
 
 function initializeTheme() {
     const savedTheme = localStorage.getItem(THEME_STORE_KEY) || 'light';
@@ -197,6 +451,13 @@ function initializeNavigation() {
 }
 
 function initializeEventListeners() {
+    document.querySelectorAll('.auth-tab').forEach((button) => {
+        button.addEventListener('click', () => switchAuthTab(button.dataset.authTab));
+    });
+    loginForm.addEventListener('submit', handleLogin);
+    registerForm.addEventListener('submit', handleRegister);
+    logoutBtn.addEventListener('click', handleLogout);
+
     detectBtn.addEventListener('click', handleDetection);
     resetBtn.addEventListener('click', resetDetectionForm);
     submitFeedbackBtn.addEventListener('click', submitSingleFeedback);

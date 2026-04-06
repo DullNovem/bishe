@@ -8,7 +8,50 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="app-shell">
+<section class="auth-shell" id="authShell">
+    <div class="auth-card">
+        <div class="auth-brand">
+            <div class="brand-dot"></div>
+            <div>
+                <h1>Spam Admin</h1>
+                <p>短信识别管理系统</p>
+            </div>
+        </div>
+        <div class="auth-tabs">
+            <button class="auth-tab active" type="button" data-auth-tab="login">登录</button>
+            <button class="auth-tab" type="button" data-auth-tab="register">注册</button>
+        </div>
+        <div id="authError" class="alert error" style="display:none;"></div>
+
+        <form class="auth-form active" id="loginForm">
+            <label class="field-label" for="loginUsername">用户名</label>
+            <input id="loginUsername" class="input" type="text" placeholder="请输入用户名">
+            <label class="field-label" for="loginPassword">密码</label>
+            <input id="loginPassword" class="input" type="password" placeholder="请输入密码">
+            <button class="btn btn-primary auth-submit" type="submit">登录系统</button>
+        </form>
+
+        <form class="auth-form" id="registerForm">
+            <label class="field-label" for="registerUsername">用户名</label>
+            <input id="registerUsername" class="input" type="text" placeholder="4-32 位用户名">
+            <div class="field-message" id="registerUsernameMessage"></div>
+            <label class="field-label" for="registerDisplayName">显示名称</label>
+            <input id="registerDisplayName" class="input" type="text" placeholder="请输入显示名称">
+            <div class="field-message" id="registerDisplayNameMessage"></div>
+            <label class="field-label" for="registerPhone">手机号</label>
+            <input id="registerPhone" class="input" type="text" placeholder="请输入手机号">
+            <div class="field-message" id="registerPhoneMessage"></div>
+            <label class="field-label" for="registerEmail">邮箱</label>
+            <input id="registerEmail" class="input" type="email" placeholder="请输入邮箱">
+            <div class="field-message" id="registerEmailMessage"></div>
+            <label class="field-label" for="registerPassword">密码</label>
+            <input id="registerPassword" class="input" type="password" placeholder="6-32 位密码">
+            <div class="field-message" id="registerPasswordMessage"></div>
+            <button class="btn btn-primary auth-submit" type="submit">注册并进入系统</button>
+        </form>
+    </div>
+</section>
+<div class="app-shell hidden" id="appShell">
     <aside class="sider">
         <div class="brand">
             <div class="brand-dot"></div>
@@ -47,6 +90,8 @@
             <div class="topbar-right">
                 <button id="themeToggleBtn" class="icon-btn" title="切换黑夜模式">🌙</button>
                 <span class="status-pill" id="healthPill">系统状态：检测中</span>
+                <span class="user-chip" id="currentUserChip">未登录</span>
+                <button class="btn btn-xs" id="logoutBtn" type="button">退出登录</button>
             </div>
         </header>
 
@@ -464,4 +509,3 @@
 <script src="script.js"></script>
 </body>
 </html>
-

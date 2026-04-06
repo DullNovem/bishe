@@ -20,6 +20,49 @@ function Require-Command {
     }
 }
 
+function Get-PythonLauncher {
+    $venvPython = Join-Path $root ".venv\Scripts\python.exe"
+    if (Test-Path $venvPython) {
+        $cfg = Join-Path $root ".venv\pyvenv.cfg"
+        if (Test-Path $cfg) {
+            $homeLine = Get-Content $cfg | Where-Object { $_ -like "home = *" } | Select-Object -First 1
+            if ($homeLine) {
+                $pythonHome = $homeLine.Substring(7).Trim()
+                if (Test-Path (Join-Path $pythonHome "python.exe")) {
+                    return @{
+                        FilePath = $venvPython
+                        Arguments = @("api_server.py")
+                    }
+                }
+            }
+        }
+    }
+
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd) {
+        return @{
+            FilePath = $pythonCmd.Source
+            Arguments = @((Join-Path $mlDir "api_server.py"))
+        }
+    }
+
+    $pyCmd = Get-Command py -ErrorAction SilentlyContinue
+    if ($pyCmd) {
+        try {
+            $probe = & $pyCmd.Source -c "import sys; print(sys.executable)" 2>$null
+            if ($LASTEXITCODE -eq 0 -and $probe) {
+                return @{
+                    FilePath = $pyCmd.Source
+                    Arguments = @((Join-Path $mlDir "api_server.py"))
+                }
+            }
+        } catch {
+        }
+    }
+
+    throw "未找到可用的 Python 运行环境。当前 .venv 已损坏（指向不存在的 D:\jiqixuexi\python.exe）。请安装 Python 3.9+ 并重新创建虚拟环境，或修复 .venv。"
+}
+
 function Wait-Http {
     param(
         [string]$Url,
@@ -66,10 +109,7 @@ Require-Command "node"
 Require-Command "java"
 Require-Command "mvn"
 
-$pythonExe = Join-Path $root ".venv\Scripts\python.exe"
-if (!(Test-Path $pythonExe)) {
-    throw "未找到虚拟环境 Python：$pythonExe，请先创建并安装依赖。"
-}
+$pythonLauncher = Get-PythonLauncher
 
 if (!(Test-Path $frontendServer)) {
     $serverLines = @(
@@ -105,7 +145,7 @@ if (!(Test-Path $backendJar)) {
 }
 
 Write-Host "[2/4] 启动 ML 服务..." -ForegroundColor Yellow
-$mlProcess = Start-Process -FilePath $pythonExe -ArgumentList "api_server.py" -WorkingDirectory $mlDir -PassThru
+$mlProcess = Start-Process -FilePath $pythonLauncher.FilePath -ArgumentList $pythonLauncher.Arguments -WorkingDirectory $mlDir -PassThru
 
 Write-Host "[3/4] 启动后端服务..." -ForegroundColor Yellow
 $backendProcess = Start-Process -FilePath "java" -ArgumentList "-jar", "$backendJar" -WorkingDirectory $backendDir -PassThru

@@ -13,11 +13,11 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "sms_detection_record")
+@Table(name = "feedback_sample")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class SMSDetectionRecord {
+public class FeedbackSample {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -25,17 +25,24 @@ public class SMSDetectionRecord {
     @Column(columnDefinition = "LONGTEXT")
     private String smsContent;
 
-    // 0=正常 1=垃圾 2=可疑
-    private Integer classification;
+    private String predictedLabel;
 
-    private String label;
-
-    private Double confidence;
-
-    private LocalDateTime detectionTime;
-
-    private String modelVersion;
+    private String correctedLabel;
 
     @Column(length = 10)
     private String lang;
+
+    private String sourceType;
+
+    private String decisionSource;
+
+    @Column(columnDefinition = "LONGTEXT")
+    private String ruleNote;
+
+    @Column(length = 32)
+    private String status;
+
+    private LocalDateTime createdAt;
+
+    private LocalDateTime reviewedAt;
 }

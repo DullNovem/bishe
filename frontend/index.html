@@ -22,6 +22,9 @@
             <div class="menu-group-title">总览</div>
             <button class="menu-item active" data-page="dashboard">工作台</button>
             <div class="menu-group-title">业务模块</div>
+            <button class="menu-item" data-page="batch">批量检测</button>
+            <button class="menu-item" data-page="rules">黑白名单</button>
+            <button class="menu-item" data-page="feedback">待审核样本</button>
             <button class="menu-item" data-page="history">检测记录</button>
             <button class="menu-item" data-page="templates">样本模板</button>
         </nav>
@@ -29,6 +32,9 @@
         <div class="sider-card">
             <p class="sider-card-title">快捷操作</p>
             <p class="sider-card-item">Ctrl / Cmd + Enter 快速检测</p>
+            <p class="sider-card-item">批量页支持上传 CSV / TXT</p>
+            <p class="sider-card-item">黑白名单可辅助模型判定</p>
+            <p class="sider-card-item">检测结果支持纠错送审</p>
             <p class="sider-card-item">记录页支持筛选与分页</p>
             <p class="sider-card-item">右上角可切换黑夜模式</p>
         </div>
@@ -37,9 +43,6 @@
     <main class="main">
         <header class="topbar">
             <div class="topbar-left">
-                <div class="search-wrap">
-                    <input class="top-search" placeholder="Please search" />
-                </div>
             </div>
             <div class="topbar-right">
                 <button id="themeToggleBtn" class="icon-btn" title="切换黑夜模式">🌙</button>
@@ -85,6 +88,10 @@
                                 <div class="kv-item"><span>垃圾概率</span><strong id="resultSpamProb">-</strong></div>
                                 <div class="kv-item"><span>使用模型</span><strong id="resultLangBadge">-</strong></div>
                             </div>
+                            <div class="feedback-bar">
+                                <span class="muted">结果不准？点击纠错后会进入待审核样本。</span>
+                                <button class="btn" id="submitFeedbackBtn" type="button">点此纠错</button>
+                            </div>
                             <div id="probabilityChart" class="chart"></div>
                         </div>
                     </section>
@@ -98,9 +105,196 @@
                         <div class="stat-grid">
                             <div class="stat-card"><span>总检测数</span><strong id="totalDetections">0</strong></div>
                             <div class="stat-card"><span>垃圾短信</span><strong id="spamCount">0</strong></div>
+                            <div class="stat-card"><span>可疑短信</span><strong id="suspiciousCount">0</strong></div>
                             <div class="stat-card"><span>正常短信</span><strong id="normalCount">0</strong></div>
                         </div>
-                        <div id="pieChart" class="chart chart-small"></div>
+                        <div class="stats-chart-block">
+                            <div class="stats-chart-head">
+                                <span>分类占比</span>
+                                <small>实时统计</small>
+                            </div>
+                            <div id="pieChart" class="chart chart-small"></div>
+                        </div>
+                    </section>
+                </aside>
+            </div>
+        </section>
+
+        <section class="page" id="page-batch">
+            <div class="workspace-layout">
+                <div class="workspace-main">
+                    <section class="panel">
+                        <div class="panel-head">
+                            <h3>批量检测 / 文件上传</h3>
+                            <div class="segmented" id="batchLangSegment">
+                                <button class="seg-btn active" data-lang="en">English</button>
+                                <button class="seg-btn" data-lang="zh">中文</button>
+                            </div>
+                        </div>
+
+                        <div class="batch-upload-card">
+                            <div class="upload-dropzone" id="uploadDropzone">
+                                <input id="batchFileInput" class="file-input" type="file" accept=".csv,.txt">
+                                <div class="upload-copy">
+                                    <h4>上传批量短信文件</h4>
+                                    <p>支持 `.csv` 或 `.txt`，单次最多 10000 条。`.txt` 按行读取，`.csv` 默认读取第一列内容。</p>
+                                </div>
+                                <div class="upload-actions">
+                                    <button class="btn btn-primary" id="triggerUploadBtn" type="button">选择文件</button>
+                                    <button class="btn" id="batchDetectBtn" type="button">开始批量检测</button>
+                                </div>
+                            </div>
+                            <div class="upload-meta">
+                                <span class="muted" id="batchLangTip">当前模型：英文</span>
+                                <span class="muted" id="selectedFileName">未选择文件</span>
+                            </div>
+                        </div>
+
+                        <div id="batchLoadingContainer" class="loading" style="display:none;">批量检测中，请稍候...</div>
+                        <div id="batchErrorContainer" class="alert error" style="display:none;"></div>
+
+                        <div id="batchResultContainer" style="display:none;">
+                            <div class="batch-summary-grid">
+                                <div class="stat-card"><span>总条数</span><strong id="batchTotalCount">0</strong></div>
+                                <div class="stat-card"><span>成功检测</span><strong id="batchSuccessCount">0</strong></div>
+                                <div class="stat-card"><span>失败条数</span><strong id="batchFailedCount">0</strong></div>
+                                <div class="stat-card"><span>垃圾短信</span><strong id="batchSpamCount">0</strong></div>
+                                <div class="stat-card"><span>可疑短信</span><strong id="batchSuspiciousCount">0</strong></div>
+                                <div class="stat-card"><span>正常短信</span><strong id="batchNormalCount">0</strong></div>
+                            </div>
+
+                            <div class="panel-head batch-table-head">
+                                <h3>结果预览</h3>
+                                <button class="btn" id="downloadBatchReportBtn" type="button">下载检测报告</button>
+                            </div>
+
+                            <div class="table-wrap">
+                                <table class="table">
+                                    <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>内容</th>
+                                        <th>结果</th>
+                                        <th>置信度</th>
+                                        <th>模型</th>
+                                        <th>状态</th>
+                                        <th>操作</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="batchTableBody">
+                                    <tr><td colspan="7" class="muted center">暂无批量检测结果</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <aside class="workspace-aside">
+                    <section class="panel">
+                        <div class="panel-head">
+                            <h3>导入说明</h3>
+                        </div>
+                        <div class="guide-list">
+                            <div class="guide-item">
+                                <strong>TXT 格式</strong>
+                                <p>每行一条短信内容，适合批量导出原始文本。</p>
+                            </div>
+                            <div class="guide-item">
+                                <strong>CSV 格式</strong>
+                                <p>默认取第一列作为短信内容，首行支持 `content` / `sms` 等表头。</p>
+                            </div>
+                            <div class="guide-item">
+                                <strong>报告下载</strong>
+                                <p>检测完成后可直接导出报告，包含每条短信的结果、概率与异常状态。</p>
+                            </div>
+                        </div>
+                    </section>
+                </aside>
+            </div>
+        </section>
+
+        <section class="page" id="page-rules">
+            <div class="workspace-layout">
+                <div class="workspace-main">
+                    <section class="panel">
+                        <div class="panel-head">
+                            <h3>黑白名单管理</h3>
+                            <button class="btn btn-primary" id="saveRulesBtn" type="button">保存规则</button>
+                        </div>
+                        <p class="muted rules-intro">允许管理员维护“白名单关键词”和“黑名单关键词”，通过规则引擎辅助模型判定。</p>
+
+                        <div class="rules-grid">
+                            <div class="rule-panel">
+                                <div class="panel-head">
+                                    <h4>强白名单关键词</h4>
+                                    <span class="muted">高确定性放行，如：银行验证码、官方取件码</span>
+                                </div>
+                                <div class="rule-input-row">
+                                    <input id="strongWhitelistInput" class="input" type="text" placeholder="输入强白名单关键词">
+                                    <button class="btn" id="addStrongWhitelistBtn" type="button">新增</button>
+                                </div>
+                                <div id="strongWhitelistList" class="keyword-list"></div>
+                            </div>
+
+                            <div class="rule-panel">
+                                <div class="panel-head">
+                                    <h4>强黑名单关键词</h4>
+                                    <span class="muted">高确定性拦截，如：代开发票、六合彩内幕</span>
+                                </div>
+                                <div class="rule-input-row">
+                                    <input id="strongBlacklistInput" class="input" type="text" placeholder="输入强黑名单关键词">
+                                    <button class="btn" id="addStrongBlacklistBtn" type="button">新增</button>
+                                </div>
+                                <div id="strongBlacklistList" class="keyword-list"></div>
+                            </div>
+
+                            <div class="rule-panel">
+                                <div class="panel-head">
+                                    <h4>弱白名单关键词</h4>
+                                    <span class="muted">仅降低风险分，如：快递通知、验证码、服务提醒</span>
+                                </div>
+                                <div class="rule-input-row">
+                                    <input id="weakWhitelistInput" class="input" type="text" placeholder="输入弱白名单关键词">
+                                    <button class="btn" id="addWeakWhitelistBtn" type="button">新增</button>
+                                </div>
+                                <div id="weakWhitelistList" class="keyword-list"></div>
+                            </div>
+
+                            <div class="rule-panel">
+                                <div class="panel-head">
+                                    <h4>弱黑名单关键词</h4>
+                                    <span class="muted">仅提高风险分，如：刷单、返利、博彩、中奖</span>
+                                </div>
+                                <div class="rule-input-row">
+                                    <input id="weakBlacklistInput" class="input" type="text" placeholder="输入弱黑名单关键词">
+                                    <button class="btn" id="addWeakBlacklistBtn" type="button">新增</button>
+                                </div>
+                                <div id="weakBlacklistList" class="keyword-list"></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <aside class="workspace-aside">
+                    <section class="panel">
+                        <div class="panel-head">
+                            <h3>规则说明</h3>
+                        </div>
+                        <div class="guide-list">
+                            <div class="guide-item">
+                                <strong>强规则直判</strong>
+                                <p>仅强白名单与强黑名单允许直接覆盖模型，模拟手机短信中的“可信来源 / 明确诈骗模板”逻辑。</p>
+                            </div>
+                            <div class="guide-item">
+                                <strong>弱规则打分</strong>
+                                <p>弱白名单和弱黑名单不直接改判，只参与风险分计算，避免普通关键词误杀。</p>
+                            </div>
+                            <div class="guide-item">
+                                <strong>三分类输出</strong>
+                                <p>综合模型概率和风险分，将结果划分为正常、可疑、垃圾三类，更接近手机短信拦截逻辑。</p>
+                            </div>
+                        </div>
                     </section>
                 </aside>
             </div>
@@ -115,6 +309,7 @@
                         <select id="resultFilter" class="input select">
                             <option value="all">全部结果</option>
                             <option value="spam">仅垃圾</option>
+                            <option value="suspicious">仅可疑</option>
                             <option value="normal">仅正常</option>
                         </select>
                         <select id="pageSizeSelect" class="input select page-size-select">
@@ -156,6 +351,60 @@
             </section>
         </section>
 
+        <section class="page" id="page-feedback">
+            <section class="panel history-panel">
+                <div class="panel-head">
+                    <h3>待审核样本</h3>
+                    <div class="table-tools">
+                        <button class="btn" id="refreshFeedbackBtn" type="button">刷新列表</button>
+                        <button class="btn" id="exportAcceptedBtn" type="button">导出已采纳样本</button>
+                        <button class="btn" id="generateTrainingDatasetBtn" type="button">生成训练集文件</button>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>内容</th>
+                            <th>模型结果</th>
+                            <th>纠错结果</th>
+                            <th>来源</th>
+                            <th>状态</th>
+                            <th>提交时间</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody id="feedbackTableBody">
+                        <tr><td colspan="8" class="muted center">暂无待审核样本</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="panel sub-panel">
+                    <div class="panel-head">
+                        <h3>误判关键词统计</h3>
+                        <span class="muted">基于已采纳样本与当前规则词统计高频误判触发项</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="table">
+                            <thead>
+                            <tr>
+                                <th>关键词</th>
+                                <th>规则类型</th>
+                                <th>命中次数</th>
+                            </tr>
+                            </thead>
+                            <tbody id="keywordStatsTableBody">
+                            <tr><td colspan="3" class="muted center">暂无统计数据</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </section>
+
         <section class="page" id="page-templates">
             <section class="panel">
                 <div class="panel-head">
@@ -190,6 +439,27 @@
         </section>
     </main>
 </div>
+
+<div class="feedback-modal" id="feedbackModal" style="display:none;">
+    <div class="feedback-modal-card">
+        <div class="panel-head">
+            <h3>选择纠错类别</h3>
+            <button class="btn btn-xs" id="closeFeedbackModalBtn" type="button">关闭</button>
+        </div>
+        <p class="muted">请选择这条短信更合适的类别，提交后将进入待审核样本。</p>
+        <div class="feedback-choice-list">
+            <button class="btn feedback-choice normal" type="button" data-label="normal">应为正常短信</button>
+            <button class="btn feedback-choice suspicious" type="button" data-label="suspicious">应为可疑短信</button>
+            <button class="btn feedback-choice spam" type="button" data-label="spam">应为垃圾短信</button>
+        </div>
+        <div class="feedback-preview">
+            <span class="muted">当前短信：</span>
+            <strong id="feedbackPreviewText">-</strong>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="appToast" style="display:none;"></div>
 
 <script src="script.js"></script>
 </body>

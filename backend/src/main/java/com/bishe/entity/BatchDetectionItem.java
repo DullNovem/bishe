@@ -1,23 +1,19 @@
 package com.bishe.entity;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
-public class SMSDetectionResponse {
+public class BatchDetectionItem {
+    private Integer rowNo;
+    private String content;
     private String label;
     private Double confidence;
     private Double normalProbability;
     private Double suspiciousProbability;
     private Double spamProbability;
-    private Long timestamp;
-    private String modelVersion;
     private String lang;
     private String decisionSource;
     private String ruleNote;
@@ -26,4 +22,5 @@ public class SMSDetectionResponse {
     private List<String> matchedStrongBlacklistKeywords = new ArrayList<>();
     private List<String> matchedWeakWhitelistKeywords = new ArrayList<>();
     private List<String> matchedWeakBlacklistKeywords = new ArrayList<>();
+    private String error;
 }

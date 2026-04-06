@@ -25,6 +25,12 @@ ml:
   server:
     url: http://localhost:5000
     predict-endpoint: /predict
+    reload-endpoint: /reload-models
+  training:
+    python-executable: ../.venv/Scripts/python.exe
+    script-path: ../ml-model/src/retrain_from_feedback.py
+    workdir: ../ml-model
+    timeout-seconds: 300
 
 logging:
   level:

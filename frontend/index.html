@@ -5,53 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>短信识别管理系统</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.3.0/dist/echarts.min.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20260410a">
 </head>
-<body>
-<section class="auth-shell" id="authShell">
-    <div class="auth-card">
-        <div class="auth-brand">
-            <div class="brand-dot"></div>
-            <div>
-                <h1>Spam Admin</h1>
-                <p>短信识别管理系统</p>
-            </div>
-        </div>
-        <div class="auth-tabs">
-            <button class="auth-tab active" type="button" data-auth-tab="login">登录</button>
-            <button class="auth-tab" type="button" data-auth-tab="register">注册</button>
-        </div>
-        <div id="authError" class="alert error" style="display:none;"></div>
-
-        <form class="auth-form active" id="loginForm">
-            <label class="field-label" for="loginUsername">用户名</label>
-            <input id="loginUsername" class="input" type="text" placeholder="请输入用户名">
-            <label class="field-label" for="loginPassword">密码</label>
-            <input id="loginPassword" class="input" type="password" placeholder="请输入密码">
-            <button class="btn btn-primary auth-submit" type="submit">登录系统</button>
-        </form>
-
-        <form class="auth-form" id="registerForm">
-            <label class="field-label" for="registerUsername">用户名</label>
-            <input id="registerUsername" class="input" type="text" placeholder="4-32 位用户名">
-            <div class="field-message" id="registerUsernameMessage"></div>
-            <label class="field-label" for="registerDisplayName">显示名称</label>
-            <input id="registerDisplayName" class="input" type="text" placeholder="请输入显示名称">
-            <div class="field-message" id="registerDisplayNameMessage"></div>
-            <label class="field-label" for="registerPhone">手机号</label>
-            <input id="registerPhone" class="input" type="text" placeholder="请输入手机号">
-            <div class="field-message" id="registerPhoneMessage"></div>
-            <label class="field-label" for="registerEmail">邮箱</label>
-            <input id="registerEmail" class="input" type="email" placeholder="请输入邮箱">
-            <div class="field-message" id="registerEmailMessage"></div>
-            <label class="field-label" for="registerPassword">密码</label>
-            <input id="registerPassword" class="input" type="password" placeholder="6-32 位密码">
-            <div class="field-message" id="registerPasswordMessage"></div>
-            <button class="btn btn-primary auth-submit" type="submit">注册并进入系统</button>
-        </form>
-    </div>
-</section>
-<div class="app-shell hidden" id="appShell">
+<body data-route="dashboard">
+<div class="app-shell" id="appShell">
     <aside class="sider">
         <div class="brand">
             <div class="brand-dot"></div>
@@ -137,6 +94,17 @@
                                 <span class="muted">结果不准？点击纠错后会进入待审核样本。</span>
                                 <button class="btn" id="submitFeedbackBtn" type="button">点此纠错</button>
                             </div>
+                            <div class="explanation-panel">
+                                <div class="panel-head compact">
+                                    <h3>判定依据</h3>
+                                    <small id="resultRiskScore">风险评分 -</small>
+                                </div>
+                                <p class="explanation-summary" id="resultExplanationSummary">-</p>
+                                <div class="keyword-chip-wrap" id="resultKeywordChips">
+                                    <span class="muted">暂无命中关键词</span>
+                                </div>
+                                <div class="explanation-list" id="resultExplanationList"></div>
+                            </div>
                             <div id="probabilityChart" class="chart"></div>
                         </div>
                     </section>
@@ -159,6 +127,21 @@
                                 <small>实时统计</small>
                             </div>
                             <div id="pieChart" class="chart chart-small"></div>
+                        </div>
+                        <div class="stats-chart-block">
+                            <div class="stats-chart-head">
+                                <span>近 7 天趋势</span>
+                                <small>检测量变化</small>
+                            </div>
+                            <div id="trendChart" class="chart chart-small"></div>
+                        </div>
+                        <div class="stats-chart-block">
+                            <div class="stats-chart-head">
+                                <span>关键词统计</span>
+                                <small>近 30 天高频命中</small>
+                            </div>
+                            <div id="keywordInsightChart" class="chart chart-small"></div>
+                            <div class="keyword-insight-list" id="keywordInsightList"></div>
                         </div>
                     </section>
                 </aside>
@@ -197,6 +180,18 @@
 
                         <div id="batchLoadingContainer" class="loading" style="display:none;">批量检测中，请稍候...</div>
                         <div id="batchErrorContainer" class="alert error" style="display:none;"></div>
+                        <div id="batchTaskStatusCard" class="batch-task-card" style="display:none;">
+                            <div class="panel-head compact">
+                                <h3>任务进度</h3>
+                                <small id="batchTaskStatusText">待处理</small>
+                            </div>
+                            <div class="task-meta-grid">
+                                <div class="kv-item"><span>任务编号</span><strong id="batchTaskId">-</strong></div>
+                                <div class="kv-item"><span>当前状态</span><strong id="batchTaskPhase">-</strong></div>
+                                <div class="kv-item"><span>文件名称</span><strong id="batchTaskFileName">-</strong></div>
+                                <div class="kv-item"><span>已处理条数</span><strong id="batchTaskProcessed">0</strong></div>
+                            </div>
+                        </div>
 
                         <div id="batchResultContainer" style="display:none;">
                             <div class="batch-summary-grid">
@@ -267,7 +262,7 @@
                             <h3>黑白名单管理</h3>
                             <button class="btn btn-primary" id="saveRulesBtn" type="button">保存规则</button>
                         </div>
-                        <p class="muted rules-intro">允许管理员维护“白名单关键词”和“黑名单关键词”，通过规则引擎辅助模型判定。</p>
+                        <p class="muted rules-intro">当前页面维护的是当前登录用户的个人黑白名单关键词，系统会将个人规则与系统默认规则合并后参与判定。</p>
 
                         <div class="rules-grid">
                             <div class="rule-panel">
@@ -506,6 +501,12 @@
 
 <div class="toast" id="appToast" style="display:none;"></div>
 
-<script src="script.js"></script>
+<script src="js/utils.js?v=20260410d"></script>
+<script src="js/core.js?v=20260410d"></script>
+<script src="js/auth.js?v=20260410d"></script>
+<script src="js/ui.js?v=20260410d"></script>
+<script src="js/detection.js?v=20260410d"></script>
+<script src="js/data-modules.js?v=20260410d"></script>
+<script src="js/bootstrap.js?v=20260410d"></script>
 </body>
 </html>

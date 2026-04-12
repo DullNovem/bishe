@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>&#30331;&#24405; - &#30701;&#20449;&#35782;&#21035;&#31649;&#29702;&#31995;&#32479;</title>
+    <link rel="stylesheet" href="style.css?v=20260410a">
+</head>
+<body data-route="login">
+<section class="auth-shell" id="authShell">
+    <div class="auth-card">
+        <div class="auth-brand">
+            <div class="brand-dot"></div>
+            <div>
+                <h1>Spam Admin</h1>
+                <p>&#30701;&#20449;&#35782;&#21035;&#31649;&#29702;&#31995;&#32479;</p>
+            </div>
+        </div>
+        <div id="authSuccess" class="alert" style="display:none; background: var(--success-bg); border: 1px solid rgba(0, 180, 42, 0.35); color: var(--success);"></div>
+        <div id="authError" class="alert error" style="display:none;"></div>
+
+        <form class="auth-form active" id="loginForm" autocomplete="off">
+            <input type="text" name="auth_fake_username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute; opacity:0; pointer-events:none; width:1px; height:1px;">
+            <input type="password" name="auth_fake_password" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute; opacity:0; pointer-events:none; width:1px; height:1px;">
+            <label class="field-label" for="loginUsername">&#29992;&#25143;&#21517;</label>
+            <input id="loginUsername" name="loginUsernameManual" class="input" type="text" placeholder="&#35831;&#36755;&#20837;&#29992;&#25143;&#21517;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <label class="field-label" for="loginPassword">&#23494;&#30721;</label>
+            <input id="loginPassword" name="loginPasswordManual" class="input" type="password" placeholder="&#35831;&#36755;&#20837;&#23494;&#30721;" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <button class="btn btn-primary auth-submit" type="submit">&#30331;&#24405;&#31995;&#32479;</button>
+        </form>
+
+        <div class="auth-footer-link">
+            <span class="muted">&#36824;&#27809;&#26377;&#36134;&#21495;&#65311;</span>
+            <a href="/register">&#21435;&#27880;&#20876;</a>
+        </div>
+    </div>
+</section>
+
+<script src="js/auth-shared.js?v=20260410d"></script>
+<script src="js/login-page.js?v=20260410d"></script>
+</body>
+</html>

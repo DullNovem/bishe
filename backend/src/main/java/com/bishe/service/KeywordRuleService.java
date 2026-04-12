@@ -2,6 +2,9 @@ package com.bishe.service;
 
 import com.bishe.entity.KeywordRuleConfig;
 import com.bishe.entity.RuleEvaluationResult;
+import com.bishe.entity.UserKeywordRuleConfigEntity;
+import com.bishe.repository.UserKeywordRuleConfigRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
@@ -9,6 +12,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -32,35 +37,60 @@ public class KeywordRuleService {
     private static final double UNCERTAIN_UPPER_BOUND = 0.72;
 
     private final ObjectMapper objectMapper;
-    private final Path configPath = Paths.get("data", "keyword-rules.json");
+    private final UserKeywordRuleConfigRepository userKeywordRuleConfigRepository;
+    private final Path systemConfigPath = Paths.get("data", "keyword-rules.json");
 
-    public KeywordRuleService(ObjectMapper objectMapper) {
+    public KeywordRuleService(ObjectMapper objectMapper,
+                              UserKeywordRuleConfigRepository userKeywordRuleConfigRepository) {
         this.objectMapper = objectMapper;
+        this.userKeywordRuleConfigRepository = userKeywordRuleConfigRepository;
     }
 
-    public synchronized KeywordRuleConfig getConfig() {
-        ensureConfigExists();
+    public synchronized KeywordRuleConfig getSystemConfig() {
+        ensureSystemConfigExists();
         try {
-            KeywordRuleConfig config = objectMapper.readValue(configPath.toFile(), KeywordRuleConfig.class);
-            return normalizeConfig(config);
+            return normalizeConfig(objectMapper.readValue(systemConfigPath.toFile(), KeywordRuleConfig.class));
         } catch (IOException e) {
-            throw new RuntimeException("读取关键词规则失败", e);
+            throw new RuntimeException("读取系统规则失败", e);
         }
     }
 
-    public synchronized KeywordRuleConfig saveConfig(KeywordRuleConfig config) {
-        ensureConfigExists();
+    public synchronized KeywordRuleConfig getConfig(Long userId) {
+        if (userId == null) {
+            return getSystemConfig();
+        }
+        return userKeywordRuleConfigRepository.findByUserId(userId)
+                .map(this::toConfig)
+                .orElseGet(KeywordRuleConfig::new);
+    }
+
+    public synchronized KeywordRuleConfig saveConfig(Long userId, KeywordRuleConfig config) {
+        if (userId == null) {
+            return saveSystemConfig(config);
+        }
+
         KeywordRuleConfig normalized = normalizeConfig(config == null ? new KeywordRuleConfig() : config);
-        try {
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(configPath.toFile(), normalized);
-            return normalized;
-        } catch (IOException e) {
-            throw new RuntimeException("保存关键词规则失败", e);
+        UserKeywordRuleConfigEntity entity = userKeywordRuleConfigRepository.findByUserId(userId)
+                .orElseGet(UserKeywordRuleConfigEntity::new);
+        entity.setUserId(userId);
+        entity.setStrongWhitelistKeywordsJson(writeList(normalized.getStrongWhitelistKeywords()));
+        entity.setStrongBlacklistKeywordsJson(writeList(normalized.getStrongBlacklistKeywords()));
+        entity.setWeakWhitelistKeywordsJson(writeList(normalized.getWeakWhitelistKeywords()));
+        entity.setWeakBlacklistKeywordsJson(writeList(normalized.getWeakBlacklistKeywords()));
+        if (entity.getCreatedAt() == null) {
+            entity.setCreatedAt(LocalDateTime.now());
         }
+        entity.setUpdatedAt(LocalDateTime.now());
+        userKeywordRuleConfigRepository.save(entity);
+        return normalized;
     }
 
-    public RuleEvaluationResult evaluate(String content, double spamProbability) {
-        KeywordRuleConfig config = getConfig();
+    public KeywordRuleConfig getMergedConfig(Long userId) {
+        return mergeConfigs(getSystemConfig(), getConfig(userId));
+    }
+
+    public RuleEvaluationResult evaluate(String content, double spamProbability, Long userId) {
+        KeywordRuleConfig config = getMergedConfig(userId);
         String safeContent = content == null ? "" : content;
         String lowered = safeContent.toLowerCase(Locale.ROOT);
 
@@ -102,7 +132,7 @@ public class KeywordRuleService {
             result.setDecisionSource("fusion:safe-pattern");
             result.setFinalLabel("normal");
             result.setRiskScore(Math.max(0.0, spamProbability * 100 - SAFE_NOTIFICATION_BONUS));
-            result.setRuleNote("命中验证码或通知类安全模式，且未发现高风险特征，直接进入正常短信");
+            result.setRuleNote("命中安全通知模式且未发现高风险特征，进入正常短信");
             return result;
         }
 
@@ -138,18 +168,119 @@ public class KeywordRuleService {
         } else if (hasRuleConflict || hasKeywordConflict) {
             result.setDecisionSource("fusion:rule-conflict");
             result.setFinalLabel("suspicious");
-            result.setRuleNote("模型判断与弱规则信号存在冲突，暂时进入可疑短信等待进一步确认");
+            result.setRuleNote("模型判断与弱规则信号存在冲突，进入可疑短信");
         } else if (modelUncertain && score >= SUSPICIOUS_MIN_SCORE && score < SPAM_THRESHOLD) {
             result.setDecisionSource("fusion:low-confidence");
             result.setFinalLabel("suspicious");
-            result.setRuleNote("模型处于低置信度区间，且风险特征不足以直接判为垃圾，进入可疑短信");
+            result.setRuleNote("模型低置信度且存在一定风险特征，进入可疑短信");
         } else {
             result.setDecisionSource("fusion:low-risk");
             result.setFinalLabel("normal");
-            result.setRuleNote("未命中强风险规则，且综合风险较低，进入正常短信");
+            result.setRuleNote("未命中高风险规则且综合风险较低，进入正常短信");
         }
 
         return result;
+    }
+
+    public KeywordRuleConfig mergeConfigs(KeywordRuleConfig systemConfig, KeywordRuleConfig userConfig) {
+        KeywordRuleConfig merged = new KeywordRuleConfig();
+        merged.setStrongWhitelistKeywords(mergeKeywords(systemConfig.getStrongWhitelistKeywords(), userConfig.getStrongWhitelistKeywords()));
+        merged.setStrongBlacklistKeywords(mergeKeywords(systemConfig.getStrongBlacklistKeywords(), userConfig.getStrongBlacklistKeywords()));
+        merged.setWeakWhitelistKeywords(mergeKeywords(systemConfig.getWeakWhitelistKeywords(), userConfig.getWeakWhitelistKeywords()));
+        merged.setWeakBlacklistKeywords(mergeKeywords(systemConfig.getWeakBlacklistKeywords(), userConfig.getWeakBlacklistKeywords()));
+        return merged;
+    }
+
+    private synchronized KeywordRuleConfig saveSystemConfig(KeywordRuleConfig config) {
+        ensureSystemConfigExists();
+        KeywordRuleConfig normalized = normalizeConfig(config == null ? new KeywordRuleConfig() : config);
+        try {
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(systemConfigPath.toFile(), normalized);
+            return normalized;
+        } catch (IOException e) {
+            throw new RuntimeException("保存系统规则失败", e);
+        }
+    }
+
+    private void ensureSystemConfigExists() {
+        try {
+            if (Files.notExists(systemConfigPath.getParent())) {
+                Files.createDirectories(systemConfigPath.getParent());
+            }
+            if (Files.notExists(systemConfigPath)) {
+                objectMapper.writerWithDefaultPrettyPrinter().writeValue(systemConfigPath.toFile(), new KeywordRuleConfig());
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("初始化系统规则文件失败", e);
+        }
+    }
+
+    private KeywordRuleConfig normalizeConfig(KeywordRuleConfig config) {
+        KeywordRuleConfig normalized = new KeywordRuleConfig();
+        normalized.setStrongWhitelistKeywords(normalizeKeywords(config.getStrongWhitelistKeywords()));
+        normalized.setStrongBlacklistKeywords(normalizeKeywords(config.getStrongBlacklistKeywords()));
+        normalized.setWeakWhitelistKeywords(normalizeKeywords(config.getWeakWhitelistKeywords()));
+        normalized.setWeakBlacklistKeywords(normalizeKeywords(config.getWeakBlacklistKeywords()));
+        return normalized;
+    }
+
+    private KeywordRuleConfig toConfig(UserKeywordRuleConfigEntity entity) {
+        KeywordRuleConfig config = new KeywordRuleConfig();
+        config.setStrongWhitelistKeywords(readList(entity.getStrongWhitelistKeywordsJson()));
+        config.setStrongBlacklistKeywords(readList(entity.getStrongBlacklistKeywordsJson()));
+        config.setWeakWhitelistKeywords(readList(entity.getWeakWhitelistKeywordsJson()));
+        config.setWeakBlacklistKeywords(readList(entity.getWeakBlacklistKeywordsJson()));
+        return normalizeConfig(config);
+    }
+
+    private List<String> readList(String rawJson) {
+        if (rawJson == null || rawJson.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(rawJson, new TypeReference<List<String>>() {});
+        } catch (IOException e) {
+            return List.of();
+        }
+    }
+
+    private String writeList(List<String> values) {
+        try {
+            return objectMapper.writeValueAsString(normalizeKeywords(values));
+        } catch (IOException e) {
+            throw new RuntimeException("保存关键词列表失败", e);
+        }
+    }
+
+    private List<String> mergeKeywords(List<String> systemKeywords, List<String> userKeywords) {
+        Set<String> merged = new LinkedHashSet<>();
+        merged.addAll(normalizeKeywords(systemKeywords));
+        merged.addAll(normalizeKeywords(userKeywords));
+        return new ArrayList<>(merged);
+    }
+
+    private List<String> findMatches(String content, List<String> keywords) {
+        String lowered = content.toLowerCase(Locale.ROOT);
+        return normalizeKeywords(keywords).stream()
+                .filter(keyword -> lowered.contains(keyword.toLowerCase(Locale.ROOT)))
+                .collect(Collectors.toList());
+    }
+
+    private List<String> normalizeKeywords(List<String> source) {
+        if (source == null) {
+            return List.of();
+        }
+        Set<String> normalized = new LinkedHashSet<>();
+        for (String keyword : source) {
+            if (keyword == null) {
+                continue;
+            }
+            String trimmed = keyword.trim();
+            if (!trimmed.isEmpty()) {
+                normalized.add(trimmed);
+            }
+        }
+        return new ArrayList<>(normalized);
     }
 
     private double calculateExtraRiskScore(String lowered, String original) {
@@ -186,7 +317,7 @@ public class KeywordRuleService {
     }
 
     private boolean containsMoneyPattern(String content) {
-        return content.matches(".*(\\d+\\s*(元|万元|万|块|rmb|￥|¥)).*");
+        return content.matches(".*(\\d+\\s*(元|万元|万|rmb|RMB)).*");
     }
 
     private boolean containsContactPattern(String content) {
@@ -199,51 +330,5 @@ public class KeywordRuleService {
                 || content.contains("取件码")
                 || content.contains("提货码")
                 || content.matches(".*【[^】]{1,12}】.*(验证码|校验码|取件码|提货码).*\\d{4,8}.*");
-    }
-
-    private void ensureConfigExists() {
-        try {
-            if (Files.notExists(configPath.getParent())) {
-                Files.createDirectories(configPath.getParent());
-            }
-            if (Files.notExists(configPath)) {
-                objectMapper.writerWithDefaultPrettyPrinter().writeValue(configPath.toFile(), new KeywordRuleConfig());
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("初始化关键词规则文件失败", e);
-        }
-    }
-
-    private KeywordRuleConfig normalizeConfig(KeywordRuleConfig config) {
-        KeywordRuleConfig normalized = new KeywordRuleConfig();
-        normalized.setStrongWhitelistKeywords(normalizeKeywords(config.getStrongWhitelistKeywords()));
-        normalized.setStrongBlacklistKeywords(normalizeKeywords(config.getStrongBlacklistKeywords()));
-        normalized.setWeakWhitelistKeywords(normalizeKeywords(config.getWeakWhitelistKeywords()));
-        normalized.setWeakBlacklistKeywords(normalizeKeywords(config.getWeakBlacklistKeywords()));
-        return normalized;
-    }
-
-    private List<String> findMatches(String content, List<String> keywords) {
-        String lowered = content.toLowerCase(Locale.ROOT);
-        return normalizeKeywords(keywords).stream()
-                .filter(keyword -> lowered.contains(keyword.toLowerCase(Locale.ROOT)))
-                .collect(Collectors.toList());
-    }
-
-    private List<String> normalizeKeywords(List<String> source) {
-        if (source == null) {
-            return List.of();
-        }
-        Set<String> normalized = new LinkedHashSet<>();
-        for (String keyword : source) {
-            if (keyword == null) {
-                continue;
-            }
-            String trimmed = keyword.trim();
-            if (!trimmed.isEmpty()) {
-                normalized.add(trimmed);
-            }
-        }
-        return normalized.stream().collect(Collectors.toList());
     }
 }

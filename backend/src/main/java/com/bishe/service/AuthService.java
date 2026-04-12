@@ -61,14 +61,14 @@ public class AuthService {
         }
 
         UserAccount account = userAccountRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("用户名或密码错误"));
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在或密码错误"));
 
         if (!"active".equalsIgnoreCase(account.getStatus())) {
             throw new IllegalArgumentException("当前账号不可用");
         }
 
         if (!account.getPasswordHash().equals(hashPassword(password))) {
-            throw new IllegalArgumentException("用户名或密码错误");
+            throw new IllegalArgumentException("用户不存在或密码错误");
         }
 
         account.setLastLoginAt(LocalDateTime.now());

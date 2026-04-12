@@ -152,10 +152,34 @@ body {
     margin-top: 8px;
 }
 
+.auth-footer-link {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.auth-footer-link a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.auth-footer-link a:hover {
+    text-decoration: underline;
+}
+
 .app-shell {
-    min-height: 100vh;
+    height: 100vh;
     display: grid;
     grid-template-columns: 248px 1fr;
+    overflow: hidden;
+}
+
+.app-shell > * {
+    min-height: 0;
 }
 
 .sider {
@@ -164,6 +188,11 @@ body {
     display: flex;
     flex-direction: column;
     padding: 14px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .brand {
@@ -248,6 +277,10 @@ body {
 }
 .main {
     padding: 14px;
+    height: 100vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
 }
 
 .topbar {
@@ -259,6 +292,9 @@ body {
     justify-content: space-between;
     align-items: center;
     box-shadow: var(--shadow);
+    position: sticky;
+    top: 0;
+    z-index: 20;
 }
 
 .topbar-left {
@@ -358,6 +394,10 @@ body {
     align-items: center;
     gap: 8px;
     margin-bottom: 12px;
+}
+
+.panel-head.compact {
+    margin-bottom: 10px;
 }
 
 .field-label {
@@ -556,6 +596,66 @@ body {
     flex-wrap: wrap;
 }
 
+.explanation-panel {
+    margin-top: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+    padding: 14px;
+}
+
+.explanation-summary {
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 14px;
+}
+
+.keyword-chip-wrap {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.keyword-insight-chip,
+.result-keyword-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(22, 93, 255, 0.16);
+    background: rgba(22, 93, 255, 0.08);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.explanation-list {
+    margin-top: 12px;
+    display: grid;
+    gap: 10px;
+}
+
+.explanation-item {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 12px;
+}
+
+.explanation-item strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.explanation-item p {
+    color: var(--text-soft);
+    font-size: 13px;
+    line-height: 1.65;
+}
+
 .chart {
     margin-top: 12px;
     min-height: 280px;
@@ -595,6 +695,33 @@ body {
     color: var(--text-soft);
     font-size: 12px;
     font-weight: 500;
+}
+
+.keyword-insight-list {
+    margin-top: 12px;
+    display: grid;
+    gap: 8px;
+}
+
+.keyword-insight-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    font-size: 13px;
+}
+
+.keyword-insight-meta {
+    display: grid;
+    gap: 4px;
+}
+
+.keyword-insight-meta small {
+    color: var(--text-soft);
 }
 
 .pie-fallback {
@@ -698,6 +825,20 @@ body {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 10px;
     margin-bottom: 16px;
+}
+
+.batch-task-card {
+    margin-top: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+    padding: 14px;
+}
+
+.task-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
 }
 
 .stat-card {
@@ -1056,7 +1197,25 @@ body {
 
 @media (max-width: 1180px) {
     .app-shell {
+        height: auto;
         grid-template-columns: 1fr;
+        overflow: visible;
+    }
+
+    .sider {
+        position: static;
+        top: auto;
+        height: auto;
+        overflow: visible;
+    }
+
+    .main {
+        height: auto;
+        overflow: visible;
+    }
+
+    .topbar {
+        position: static;
     }
 
     .workspace-layout {

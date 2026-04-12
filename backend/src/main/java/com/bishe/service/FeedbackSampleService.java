@@ -42,6 +42,9 @@ public class FeedbackSampleService {
     }
 
     public FeedbackSample submitFeedback(FeedbackRequest request) {
+        if (request.getUserId() == null) {
+            throw new IllegalArgumentException("用户标识不能为空");
+        }
         if (request.getContent() == null || request.getContent().trim().isEmpty()) {
             throw new IllegalArgumentException("短信内容不能为空");
         }
@@ -50,6 +53,7 @@ public class FeedbackSampleService {
         }
 
         FeedbackSample sample = new FeedbackSample();
+        sample.setUserId(request.getUserId());
         sample.setSmsContent(request.getContent().trim());
         sample.setPredictedLabel(request.getPredictedLabel());
         sample.setCorrectedLabel(request.getCorrectedLabel());
@@ -63,30 +67,34 @@ public class FeedbackSampleService {
         return feedbackSampleRepository.save(sample);
     }
 
-    public List<FeedbackSample> listFeedbackSamples() {
-        return feedbackSampleRepository.findAllByOrderByCreatedAtDesc();
+    public List<FeedbackSample> listFeedbackSamples(Long userId) {
+        return userId == null
+                ? feedbackSampleRepository.findAllByOrderByCreatedAtDesc()
+                : feedbackSampleRepository.findAllByUserIdOrderByCreatedAtDesc(userId);
     }
 
-    public FeedbackSample updateStatus(Long id, String status) {
+    public FeedbackSample updateStatus(Long id, String status, Long userId) {
         if (!"pending".equals(status) && !"accepted".equals(status) && !"ignored".equals(status)) {
             throw new IllegalArgumentException("状态非法");
         }
 
         FeedbackSample sample = feedbackSampleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("反馈样本不存在"));
+        ensureOwnership(sample, userId);
         sample.setStatus(status);
         sample.setReviewedAt("pending".equals(status) ? null : LocalDateTime.now());
         return feedbackSampleRepository.saveAndFlush(sample);
     }
 
-    public void deleteFeedbackSample(Long id) {
+    public void deleteFeedbackSample(Long id, Long userId) {
         FeedbackSample sample = feedbackSampleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("反馈样本不存在"));
+        ensureOwnership(sample, userId);
         feedbackSampleRepository.delete(sample);
     }
 
-    public FeedbackExportResponse exportAcceptedSamples() {
-        List<FeedbackSample> acceptedSamples = feedbackSampleRepository.findAllByStatusOrderByCreatedAtDesc("accepted");
+    public FeedbackExportResponse exportAcceptedSamples(Long userId) {
+        List<FeedbackSample> acceptedSamples = loadAcceptedSamples(userId);
         String csv = buildAcceptedSamplesCsv(acceptedSamples);
 
         FeedbackExportResponse response = new FeedbackExportResponse();
@@ -96,8 +104,8 @@ public class FeedbackSampleService {
         return response;
     }
 
-    public TrainingDatasetResponse generateTrainingDataset() {
-        List<FeedbackSample> acceptedSamples = feedbackSampleRepository.findAllByStatusOrderByCreatedAtDesc("accepted");
+    public TrainingDatasetResponse generateTrainingDataset(Long userId) {
+        List<FeedbackSample> acceptedSamples = loadAcceptedSamples(userId);
         Path generatedDir = Paths.get("..", "ml-model", "data", "generated");
 
         try {
@@ -146,9 +154,9 @@ public class FeedbackSampleService {
         return response;
     }
 
-    public List<FeedbackKeywordStatDTO> getMisjudgmentKeywordStats() {
-        List<FeedbackSample> acceptedSamples = feedbackSampleRepository.findAllByStatusOrderByCreatedAtDesc("accepted");
-        KeywordRuleConfig config = keywordRuleService.getConfig();
+    public List<FeedbackKeywordStatDTO> getMisjudgmentKeywordStats(Long userId) {
+        List<FeedbackSample> acceptedSamples = loadAcceptedSamples(userId);
+        KeywordRuleConfig config = keywordRuleService.getMergedConfig(userId);
 
         Map<String, FeedbackKeywordStatDTO> stats = new LinkedHashMap<>();
         addKeywordMatches(stats, acceptedSamples, config.getStrongWhitelistKeywords(), "强白名单");
@@ -160,6 +168,12 @@ public class FeedbackSampleService {
                 .sorted(Comparator.comparing(FeedbackKeywordStatDTO::getHitCount).reversed())
                 .limit(20)
                 .collect(Collectors.toList());
+    }
+
+    private List<FeedbackSample> loadAcceptedSamples(Long userId) {
+        return userId == null
+                ? feedbackSampleRepository.findAllByStatusOrderByCreatedAtDesc("accepted")
+                : feedbackSampleRepository.findAllByUserIdAndStatusOrderByCreatedAtDesc(userId, "accepted");
     }
 
     private void addKeywordMatches(Map<String, FeedbackKeywordStatDTO> stats,
@@ -179,9 +193,10 @@ public class FeedbackSampleService {
     private String buildAcceptedSamplesCsv(List<FeedbackSample> samples) {
         StringBuilder builder = new StringBuilder();
         builder.append('\uFEFF');
-        builder.append("ID,短信内容,原预测结果,纠错结果,语言,来源,判定来源,规则说明,状态,提交时间,审核时间\n");
+        builder.append("ID,用户ID,短信内容,原预测结果,纠错结果,语言,来源,判定来源,规则说明,状态,提交时间,审核时间\n");
         for (FeedbackSample sample : samples) {
             builder.append(sample.getId()).append(',')
+                    .append(sample.getUserId()).append(',')
                     .append(csvEscape(sample.getSmsContent())).append(',')
                     .append(csvEscape(sample.getPredictedLabel())).append(',')
                     .append(csvEscape(sample.getCorrectedLabel())).append(',')
@@ -232,5 +247,14 @@ public class FeedbackSampleService {
 
     private boolean isValidLabel(String label) {
         return "normal".equals(label) || "spam".equals(label) || "suspicious".equals(label);
+    }
+
+    private void ensureOwnership(FeedbackSample sample, Long userId) {
+        if (userId == null) {
+            return;
+        }
+        if (!userId.equals(sample.getUserId())) {
+            throw new IllegalArgumentException("无权操作其他用户的数据");
+        }
     }
 }

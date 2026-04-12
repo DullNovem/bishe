@@ -22,6 +22,8 @@ public class SMSDetectionRecord {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private Long userId;
+
     @Column(columnDefinition = "LONGTEXT")
     private String smsContent;
 

@@ -8,7 +8,11 @@ import java.util.List;
 
 @Repository
 public interface FeedbackSampleRepository extends JpaRepository<FeedbackSample, Long> {
+    List<FeedbackSample> findAllByUserIdOrderByCreatedAtDesc(Long userId);
+
     List<FeedbackSample> findAllByOrderByCreatedAtDesc();
+
+    List<FeedbackSample> findAllByUserIdAndStatusOrderByCreatedAtDesc(Long userId, String status);
 
     List<FeedbackSample> findAllByStatusOrderByCreatedAtDesc(String status);
 }

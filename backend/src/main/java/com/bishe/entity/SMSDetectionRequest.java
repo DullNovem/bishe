@@ -19,7 +19,7 @@ public class SMSDetectionRequest {
     /**
      * 用户标识（可选）
      */
-    private String userId;
+    private Long userId;
 
     /**
      * 语言类型: "en"（英文模型）或 "zh"（中文模型），默认 "en"

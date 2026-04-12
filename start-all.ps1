@@ -1,4 +1,11 @@
-﻿$ErrorActionPreference = "Stop"
+﻿[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+chcp.com 65001 > $null
+$env:JAVA_TOOL_OPTIONS = "-Dfile.encoding=UTF-8"
+$env:MAVEN_OPTS = "-Dfile.encoding=UTF-8"
+$env:PYTHONIOENCODING = "utf-8"
+$ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $mlDir = Join-Path $root "ml-model"
@@ -21,46 +28,64 @@ function Require-Command {
 }
 
 function Get-PythonLauncher {
+    $scriptPath = Join-Path $mlDir "api_server.py"
+    $candidates = @()
+    $knownPython = "C:\Users\86183\AppData\Local\Programs\Python\Python310\python.exe"
+
     $venvPython = Join-Path $root ".venv\Scripts\python.exe"
     if (Test-Path $venvPython) {
-        $cfg = Join-Path $root ".venv\pyvenv.cfg"
-        if (Test-Path $cfg) {
-            $homeLine = Get-Content $cfg | Where-Object { $_ -like "home = *" } | Select-Object -First 1
-            if ($homeLine) {
-                $pythonHome = $homeLine.Substring(7).Trim()
-                if (Test-Path (Join-Path $pythonHome "python.exe")) {
-                    return @{
-                        FilePath = $venvPython
-                        Arguments = @("api_server.py")
-                    }
-                }
-            }
+        $candidates += @{
+            Name = ".venv"
+            FilePath = $venvPython
+            Arguments = @("api_server.py")
+            Probe = @("--version")
         }
     }
 
     $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
     if ($pythonCmd) {
-        return @{
+        $candidates += @{
+            Name = "python"
             FilePath = $pythonCmd.Source
-            Arguments = @((Join-Path $mlDir "api_server.py"))
+            Arguments = @($scriptPath)
+            Probe = @("--version")
         }
     }
 
     $pyCmd = Get-Command py -ErrorAction SilentlyContinue
     if ($pyCmd) {
+        $candidates += @{
+            Name = "py"
+            FilePath = $pyCmd.Source
+            Arguments = @("-3.10", $scriptPath)
+            Probe = @("-3.10", "--version")
+        }
+    }
+
+    if (Test-Path $knownPython) {
+        $candidates += @{
+            Name = "python310"
+            FilePath = $knownPython
+            Arguments = @($scriptPath)
+            Probe = @("--version")
+        }
+    }
+
+    foreach ($candidate in $candidates) {
         try {
-            $probe = & $pyCmd.Source -c "import sys; print(sys.executable)" 2>$null
-            if ($LASTEXITCODE -eq 0 -and $probe) {
+            & $candidate.FilePath @($candidate.Probe) *> $null
+            if ($LASTEXITCODE -eq 0) {
                 return @{
-                    FilePath = $pyCmd.Source
-                    Arguments = @((Join-Path $mlDir "api_server.py"))
+                    FilePath = $candidate.FilePath
+                    Arguments = $candidate.Arguments
+                    Name = $candidate.Name
                 }
             }
         } catch {
         }
     }
 
-    throw "未找到可用的 Python 运行环境。当前 .venv 已损坏（指向不存在的 D:\jiqixuexi\python.exe）。请安装 Python 3.9+ 并重新创建虚拟环境，或修复 .venv。"
+    throw "未找到可用的 Python 运行环境。请确保 .venv、python、py -3.10 或本机 Python 3.10 安装路径至少有一个可用。"
 }
 
 function Wait-Http {
@@ -110,6 +135,7 @@ Require-Command "java"
 Require-Command "mvn"
 
 $pythonLauncher = Get-PythonLauncher
+Write-Host ("Python 解释器 : {0}" -f $pythonLauncher.Name) -ForegroundColor DarkCyan
 
 if (!(Test-Path $frontendServer)) {
     $serverLines = @(
@@ -119,12 +145,16 @@ if (!(Test-Path $frontendServer)) {
         "const root = process.cwd();",
         "const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'application/javascript; charset=utf-8' };",
         "http.createServer((req,res)=> {",
-        "  const reqPath = req.url === '/' ? '/index.html' : decodeURIComponent(req.url.split('?')[0]);",
+        "  const pathname = decodeURIComponent(req.url.split('?')[0]);",
+        "  const reqPath = pathname === '/' ? '/index.html' : pathname === '/login' ? '/login.html' : pathname === '/register' ? '/register.html' : pathname === '/dashboard' ? '/index.html' : pathname;",
         "  const filePath = path.join(root, reqPath);",
         "  fs.readFile(filePath, (err,data)=> {",
         "    if (err) { res.statusCode = 404; res.end('Not Found'); return; }",
         "    const ext = path.extname(filePath).toLowerCase();",
         "    res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');",
+        "    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');",
+        "    res.setHeader('Pragma', 'no-cache');",
+        "    res.setHeader('Expires', '0');",
         "    res.end(data);",
         "  });",
         "}).listen(5501, '127.0.0.1', ()=> console.log('Preview server running at http://127.0.0.1:5501'));"
@@ -134,14 +164,12 @@ if (!(Test-Path $frontendServer)) {
 
 Stop-OldProcesses
 
-if (!(Test-Path $backendJar)) {
-    Write-Host "[1/4] 构建后端 JAR..." -ForegroundColor Yellow
-    Push-Location $backendDir
-    try {
-        & mvn clean package -DskipTests
-    } finally {
-        Pop-Location
-    }
+Write-Host "[1/4] 构建后端 JAR..." -ForegroundColor Yellow
+Push-Location $backendDir
+try {
+    & mvn clean package -DskipTests
+} finally {
+    Pop-Location
 }
 
 Write-Host "[2/4] 启动 ML 服务..." -ForegroundColor Yellow

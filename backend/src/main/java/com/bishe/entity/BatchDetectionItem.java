@@ -18,6 +18,9 @@ public class BatchDetectionItem {
     private String decisionSource;
     private String ruleNote;
     private Double riskScore;
+    private String explanationSummary;
+    private List<String> matchedKeywords = new ArrayList<>();
+    private List<DetectionExplanationItem> explanationItems = new ArrayList<>();
     private List<String> matchedStrongWhitelistKeywords = new ArrayList<>();
     private List<String> matchedStrongBlacklistKeywords = new ArrayList<>();
     private List<String> matchedWeakWhitelistKeywords = new ArrayList<>();

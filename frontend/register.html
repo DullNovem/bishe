@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>&#27880;&#20876; - &#30701;&#20449;&#35782;&#21035;&#31649;&#29702;&#31995;&#32479;</title>
+    <link rel="stylesheet" href="style.css?v=20260410a">
+</head>
+<body data-route="register">
+<section class="auth-shell" id="authShell">
+    <div class="auth-card">
+        <div class="auth-brand">
+            <div class="brand-dot"></div>
+            <div>
+                <h1>Spam Admin</h1>
+                <p>&#30701;&#20449;&#35782;&#21035;&#31649;&#29702;&#31995;&#32479;</p>
+            </div>
+        </div>
+        <div id="authSuccess" class="alert" style="display:none; background: var(--success-bg); border: 1px solid rgba(0, 180, 42, 0.35); color: var(--success);"></div>
+        <div id="authError" class="alert error" style="display:none;"></div>
+
+        <form class="auth-form active" id="registerForm" autocomplete="off">
+            <input type="text" name="auth_fake_username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute; opacity:0; pointer-events:none; width:1px; height:1px;">
+            <input type="password" name="auth_fake_password" autocomplete="new-password" tabindex="-1" aria-hidden="true" style="position:absolute; opacity:0; pointer-events:none; width:1px; height:1px;">
+            <label class="field-label" for="registerUsername">&#29992;&#25143;&#21517;</label>
+            <input id="registerUsername" name="registerUsernameManual" class="input" type="text" placeholder="4-32 &#20301;&#29992;&#25143;&#21517;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <div class="field-message" id="registerUsernameMessage"></div>
+
+            <label class="field-label" for="registerDisplayName">&#26174;&#31034;&#21517;&#31216;</label>
+            <input id="registerDisplayName" name="registerDisplayNameManual" class="input" type="text" placeholder="&#35831;&#36755;&#20837;&#26174;&#31034;&#21517;&#31216;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <div class="field-message" id="registerDisplayNameMessage"></div>
+
+            <label class="field-label" for="registerPhone">&#25163;&#26426;&#21495;</label>
+            <input id="registerPhone" name="registerPhoneManual" class="input" type="text" placeholder="&#36873;&#22635;&#65292;&#36755;&#20837; 11 &#20301;&#25163;&#26426;&#21495;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <div class="field-message" id="registerPhoneMessage"></div>
+
+            <label class="field-label" for="registerEmail">&#37038;&#31665;</label>
+            <input id="registerEmail" name="registerEmailManual" class="input" type="email" placeholder="&#36873;&#22635;&#65292;&#36755;&#20837;&#37038;&#31665;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <div class="field-message" id="registerEmailMessage"></div>
+
+            <label class="field-label" for="registerPassword">&#23494;&#30721;</label>
+            <input id="registerPassword" name="registerPasswordManual" class="input" type="password" placeholder="6-32 &#20301;&#23494;&#30721;&#65292;&#38656;&#21253;&#21547;&#23383;&#27597;&#21644;&#25968;&#23383;" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <div class="field-message" id="registerPasswordMessage"></div>
+
+            <label class="field-label" for="registerConfirmPassword">&#30830;&#35748;&#23494;&#30721;</label>
+            <input id="registerConfirmPassword" name="registerConfirmPasswordManual" class="input" type="password" placeholder="&#35831;&#20877;&#27425;&#36755;&#20837;&#23494;&#30721;" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');">
+            <div class="field-message" id="registerConfirmPasswordMessage"></div>
+
+            <button class="btn btn-primary auth-submit" type="submit">&#31435;&#21363;&#27880;&#20876;</button>
+        </form>
+
+        <div class="auth-footer-link">
+            <span class="muted">&#24050;&#32463;&#26377;&#36134;&#21495;&#65311;</span>
+            <a href="/login">&#36820;&#22238;&#30331;&#24405;</a>
+        </div>
+    </div>
+</section>
+
+<script src="js/auth-shared.js?v=20260410d"></script>
+<script src="js/register-page.js?v=20260410d"></script>
+</body>
+</html>

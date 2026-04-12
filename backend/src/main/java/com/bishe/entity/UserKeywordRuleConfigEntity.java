@@ -13,38 +13,31 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "feedback_sample")
+@Table(name = "user_keyword_rule_config")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class FeedbackSample {
+public class UserKeywordRuleConfigEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false, unique = true)
     private Long userId;
 
     @Column(columnDefinition = "LONGTEXT")
-    private String smsContent;
-
-    private String predictedLabel;
-
-    private String correctedLabel;
-
-    @Column(length = 10)
-    private String lang;
-
-    private String sourceType;
-
-    private String decisionSource;
+    private String strongWhitelistKeywordsJson;
 
     @Column(columnDefinition = "LONGTEXT")
-    private String ruleNote;
+    private String strongBlacklistKeywordsJson;
 
-    @Column(length = 32)
-    private String status;
+    @Column(columnDefinition = "LONGTEXT")
+    private String weakWhitelistKeywordsJson;
+
+    @Column(columnDefinition = "LONGTEXT")
+    private String weakBlacklistKeywordsJson;
 
     private LocalDateTime createdAt;
 
-    private LocalDateTime reviewedAt;
+    private LocalDateTime updatedAt;
 }

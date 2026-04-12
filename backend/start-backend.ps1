@@ -1,3 +1,10 @@
+﻿[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+chcp.com 65001 > $null
+$env:JAVA_TOOL_OPTIONS = "-Dfile.encoding=UTF-8"
+$env:MAVEN_OPTS = "-Dfile.encoding=UTF-8"
+$env:PYTHONIOENCODING = "utf-8"
 # 启动垃圾短信检测系统 - 后端 (PowerShell)
 # 用法: .\start-backend.ps1
 

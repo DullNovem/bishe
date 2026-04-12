@@ -1,4 +1,7 @@
-﻿$ErrorActionPreference = "Stop"
+﻿[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $pidFile = Join-Path (Join-Path $root ".runtime") "pids.json"

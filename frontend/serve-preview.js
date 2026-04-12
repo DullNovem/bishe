@@ -16,7 +16,16 @@ const mime = {
 };
 
 http.createServer((req, res) => {
-  const reqPath = req.url === '/' ? '/index.html' : decodeURIComponent(req.url.split('?')[0]);
+  const pathname = decodeURIComponent(req.url.split('?')[0]);
+  const reqPath = pathname === '/'
+    ? '/index.html'
+    : pathname === '/login'
+      ? '/login.html'
+      : pathname === '/register'
+        ? '/register.html'
+      : pathname === '/dashboard'
+        ? '/index.html'
+        : pathname;
   const filePath = path.join(root, reqPath);
   fs.readFile(filePath, (err, data) => {
     if (err) {
@@ -26,6 +35,9 @@ http.createServer((req, res) => {
     }
     const ext = path.extname(filePath).toLowerCase();
     res.setHeader('Content-Type', mime[ext] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.end(data);
   });
 }).listen(5501, '127.0.0.1', () => {

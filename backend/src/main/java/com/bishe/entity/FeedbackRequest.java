@@ -4,6 +4,7 @@ import lombok.Data;
 
 @Data
 public class FeedbackRequest {
+    private Long userId;
     private String content;
     private String predictedLabel;
     private String correctedLabel;
